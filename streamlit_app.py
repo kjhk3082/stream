@@ -1,10 +1,27 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 import streamlit.components.v1 as components
+import matplotlib as mpl
+import platform
+
+# 한글 폰트 설정
+if platform.system() == 'Windows':
+    # Windows 환경
+    plt.rc('font', family='Malgun Gothic')
+elif platform.system() == 'Darwin':
+    # macOS 환경
+    plt.rc('font', family='AppleGothic')
+else:
+    # Linux 환경 (Streamlit Cloud 등)
+    plt.rc('font', family=['NanumGothic', 'Malgun Gothic', 'AppleGothic', 'sans-serif'])
+    
+# 마이너스 기호 깨짐 방지
+mpl.rcParams['axes.unicode_minus'] = False
 
 # Page config
 st.set_page_config(page_title="화장품 수출 대시보드", layout="wide")
