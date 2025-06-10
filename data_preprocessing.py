@@ -41,7 +41,7 @@ def get_processed_data(new_csv_path):
 
 # This part is for testing the script independently, not for Streamlit app
 if __name__ == '__main__':
-    new_csv_file = '/home/ubuntu/upload/comprehensive_cosmetics_export_analysis.csv'
+    new_csv_file = 'comprehensive_cosmetics_export_analysis.csv'
     processed_df = get_processed_data(new_csv_file)
     processed_df.to_csv('/home/ubuntu/processed_2024_data.csv', index=False)
     print("Data preprocessing complete. processed_2024_data.csv created for testing.")
