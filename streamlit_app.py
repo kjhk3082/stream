@@ -14,7 +14,8 @@ data = load_data()
 
 # Calculate score based on Min-Max normalization and weighted sum
 def calculate_score(item, weights, all_data):
-    if not item or pd.isna(item["Export_Value"]) or pd.isna(item["Growth_Rate"]) or pd.isna(item["Risk_Score"]):
+    # Check for NaN values in critical columns directly
+    if pd.isna(item["Export_Value"]) or pd.isna(item["Growth_Rate"]) or pd.isna(item["Risk_Score"]):
         return 0
 
     export_values = all_data["Export_Value"].dropna()
