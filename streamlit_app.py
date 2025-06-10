@@ -1,202 +1,181 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-import seaborn as sns
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
-import streamlit.components.v1 as components
-import matplotlib as mpl
-import platform
-
-# 한글 폰트 설정
-if platform.system() == 'Windows':
-    # Windows 환경
-    plt.rc('font', family='Malgun Gothic')
-elif platform.system() == 'Darwin':
-    # macOS 환경
-    plt.rc('font', family='AppleGothic')
-else:
-    # Linux 환경 (Streamlit Cloud 등)
-    plt.rc('font', family=['NanumGothic', 'Malgun Gothic', 'AppleGothic', 'sans-serif'])
-    
-# 마이너스 기호 깨짐 방지
-mpl.rcParams['axes.unicode_minus'] = False
-
-# Page config
-st.set_page_config(page_title="화장품 수출 대시보드", layout="wide")
-
-# Title
-st.title("🌍 2024 화장품 수출 적합도 대시보드")
+import numpy as np
+from data_preprocessing import get_processed_data # Assuming data_preprocessing.py is in the same directory
 
 # Load data
 @st.cache_data
 def load_data():
-    # 데이터 생성
-    data = {
-        'Country': [
-            '중국', '미국', '일본', '베트남', '홍콩', '러시아', '폴란드', '대만', '태국', 
-            '싱가포르', '캐나다', 'UAE', '호주', '영국', '필리핀', '인도네시아', '네덜란드', 
-            '스페인', '말레이시아', '카자흐스탄'
-        ],
-        'Continent': [
-            '아시아', '북미', '아시아', '아시아', '아시아', '유럽', '유럽', '아시아', '아시아',
-            '아시아', '북미', '중동', '오세아니아', '유럽', '아시아', '아시아', '유럽',
-            '유럽', '아시아', '아시아'
-        ],
-        'Total_Export_USD': [
-            908247, 592074, 332213, 206933, 191093, 122240, 99657, 99367, 93613,
-            77604, 76580, 66358, 60062, 50775, 49411, 45000, 42000, 38000, 35000, 30000
-        ],
-        'Average_Growth_Rate_Percent': [
-            -12.0, 65.5, 23.1, 24.5, 22.2, -8.8, 141.5, 36.7, 22.2,
-            22.2, 61.8, 72.3, 54.0, 22.2, 32.6, 85.4, 87.7, 36.0, 25.9, 50.6
-        ],
-        'Risk_Index': [
-            4, 3, 3, 4, 3, 5, 3, 3, 4,
-            2, 2, 4, 2, 2, 3, 4, 3, 3, 3, 3
-        ],
-        'Overdue_Rate_Percent': [
-            25.0, 17.2, 17.4, 30.0, 20.0, 35.0, 15.0, 14.8, 25.0,
-            10.0, 8.0, 20.0, 5.0, 7.0, 18.0, 28.0, 12.0, 15.0, 18.0, 22.0
-        ]
-    }
-    
-    df = pd.DataFrame(data)
-    
-    # Export_Suitability_Score 계산 (수출액, 성장률, 리스크 지수, 연체율 기반)
-    df['Export_Suitability_Score'] = (
-        df['Total_Export_USD'] * 0.4 + 
-        df['Average_Growth_Rate_Percent'] * 100 * 0.3 - 
-        df['Risk_Index'] * 1000 * 0.2 - 
-        df['Overdue_Rate_Percent'] * 100 * 0.1
-    )
-    
-    # 클러스터 분류
-    df['Cluster'] = df.apply(lambda row: (
-        '고성장-저위험' if row['Average_Growth_Rate_Percent'] >= 30 and row['Risk_Index'] <= 3 else
-        '고성장-고위험' if row['Average_Growth_Rate_Percent'] >= 30 else
-        '저성장-저위험' if row['Risk_Index'] <= 3 else '저성장-고위험'
-    ), axis=1)
-    
+    # Use the provided CSV file directly
+    df = get_processed_data("comprehensive_cosmetics_export_analysis.csv")
     return df
 
 data = load_data()
 
-# Sidebar filters
-st.sidebar.header("필터")
-continent_filter = st.sidebar.multiselect("대륙 선택", options=data['Continent'].unique(), default=data['Continent'].unique())
-cluster_filter = st.sidebar.multiselect("클러스터 선택", options=data['Cluster'].unique(), default=data['Cluster'].unique())
+# Calculate score based on Min-Max normalization and weighted sum
+def calculate_score(item, weights, all_data):
+    if not item or pd.isna(item["Export_Value"]) or pd.isna(item["Growth_Rate"]) or pd.isna(item["Risk_Score"]):
+        return 0
 
-filtered = data[(data['Continent'].isin(continent_filter)) & (data['Cluster'].isin(cluster_filter))]
+    export_values = all_data["Export_Value"].dropna()
+    growth_rates = all_data["Growth_Rate"].dropna()
+    risk_scores = all_data["Risk_Score"].dropna()
 
-# 차트 표시 설정
-st.sidebar.header("차트 표시 설정")
-show_top_countries = st.sidebar.checkbox("수출 적합도 상위 국가", value=True)
-show_risk_growth = st.sidebar.checkbox("리스크 vs 성장률 클러스터", value=True)
-show_regional = st.sidebar.checkbox("대륙별 평균 적합도 점수", value=True)
-show_growth_rate = st.sidebar.checkbox("국가별 수출 성장률", value=True)
+    min_export = export_values.min()
+    max_export = export_values.max()
+    min_growth = growth_rates.min()
+    max_growth = growth_rates.max()
+    min_risk = risk_scores.min()
+    max_risk = risk_scores.max()
 
-# 차트 표시 on/off 기능만 유지
+    normalized_export = 100 * (item["Export_Value"] - min_export) / (max_export - min_export) if (max_export - min_export) != 0 else 0
+    normalized_growth = 100 * (item["Growth_Rate"] - min_growth) / (max_growth - min_growth) if (max_growth - min_growth) != 0 else 0
+    normalized_safety = 100 * (max_risk - item["Risk_Score"]) / (max_risk - min_risk) if (max_risk - min_risk) != 0 else 0
 
-# Section 1: Top N Countries
-if show_top_countries:
-    st.markdown("---")
-    st.subheader("🏆 수출 적합도 점수 기준 상위 국가")
-    top_n = st.slider("상위 국가 수 선택", 5, 20, 10)
-    fig1, ax1 = plt.subplots(figsize=(12, 6))
-    sns.barplot(data=filtered.nlargest(top_n, 'Export_Suitability_Score'), x='Export_Suitability_Score', y='Country', palette='viridis', ax=ax1)
-    ax1.set_title("수출 적합도 상위 국가")
-    ax1.set_xlabel("수출 적합도 점수")
-    ax1.set_ylabel("국가")
-    st.pyplot(fig1)
+    score = (normalized_export * weights["export"] / 100) + \
+            (normalized_growth * weights["growth"] / 100) + \
+            (normalized_safety * weights["safety"] / 100)
 
-# Section 2: Risk vs Growth Clustering
-if show_risk_growth:
-    st.markdown("---")
-    st.subheader("📈 리스크 vs 성장률 클러스터")
-    fig2, ax2 = plt.subplots(figsize=(10, 6))
-    # 스캐터플롯에서 s 파라미터 제거하여 오류 방지
-    scatter = sns.scatterplot(data=filtered, x='Risk_Index', y='Average_Growth_Rate_Percent', 
-                     hue='Cluster', style='Cluster', ax=ax2)
-    ax2.set_title("클러스터별 성장률 vs 리스크")
-    ax2.set_xlabel("리스크 지수")
-    ax2.set_ylabel("평균 성장률 (%)")
-    ax2.grid(True)
-    st.pyplot(fig2)
+    return score
 
-# Section 3: Regional Score Analysis
-if show_regional:
-    st.markdown("---")
-    st.subheader("🌐 대륙별 평균 적합도 점수")
-    region_score = filtered.groupby('Continent')['Export_Suitability_Score'].mean().sort_values()
-    fig3, ax3 = plt.subplots(figsize=(10, 5))
-    sns.barplot(x=region_score.values, y=region_score.index, palette='coolwarm', ax=ax3)
-    ax3.set_title("대륙별 평균 적합도")
-    ax3.set_xlabel("평균 적합도 점수")
-    ax3.set_ylabel("대륙")
-    st.pyplot(fig3)
+# Streamlit App
+st.set_page_config(layout="wide", page_title="화장품 수출 적합도 분석 대시보드")
 
-# Section 4: Growth Rate Analysis
-if show_growth_rate:
-    st.markdown("---")
-    st.subheader("🚀 국가별 수출 성장률")
-    fig4, ax4 = plt.subplots(figsize=(12, 6))
-    growth_data = filtered.sort_values('Average_Growth_Rate_Percent', ascending=False).head(10)
-    sns.barplot(data=growth_data, x='Country', y='Average_Growth_Rate_Percent', palette='YlGn', ax=ax4)
-    ax4.set_title("상위 10개국 수출 성장률")
-    ax4.set_xlabel("국가")
-    ax4.set_ylabel("성장률 (%)")
-    plt.xticks(rotation=45)
-    st.pyplot(fig4)
+st.title("화장품 수출 적합도 분석 대시보드")
 
-# Section 5: Predictive Modeling (항상 표시)
-st.markdown("---")
-st.subheader("🤖 수출 적합도 점수 예측 모델")
+# Scenario selection
+st.sidebar.header("가중치 시나리오 선택")
+scenario_options = {
+    "안전 중심": {"export": 20, "growth": 20, "safety": 60},
+    "성장률 중심": {"export": 20, "growth": 60, "safety": 20},
+    "수출액 중심": {"export": 60, "growth": 20, "safety": 20},
+    "밸런스 중심": {"export": 33, "growth": 33, "safety": 34},
+    "사용자 정의": None
+}
 
-features = ['Total_Export_USD', 'Average_Growth_Rate_Percent', 'Risk_Index', 'Overdue_Rate_Percent']
-X = filtered[features]
-y = filtered['Export_Suitability_Score']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-model = LinearRegression()
-model.fit(X_train, y_train)
-pred = model.predict(X_test)
+selected_scenario_name = st.sidebar.radio("시나리오", list(scenario_options.keys()))
 
-col1, col2 = st.columns(2)
-col1.metric("모델 R² 점수", f"{model.score(X_test, y_test):.2f}")
-col2.metric("평균 예측 점수", f"{pred.mean():,.0f}")
-
-# 사용자 입력 기반 예측
-st.subheader("새로운 국가 수출 적합도 예측")
-col1, col2 = st.columns(2)
-col3, col4 = st.columns(2)
-
-with col1:
-    new_export = st.number_input("수출액 (천 USD)", min_value=0, max_value=1000000, value=100000)
-with col2:
-    new_growth = st.number_input("성장률 (%)", min_value=-100.0, max_value=200.0, value=30.0)
-with col3:
-    new_risk = st.number_input("리스크 지수 (1-5)", min_value=1, max_value=5, value=3)
-with col4:
-    new_overdue = st.number_input("연체율 (%)", min_value=0.0, max_value=100.0, value=15.0)
-
-if st.button("예측하기"):
-    new_data = pd.DataFrame({
-        'Total_Export_USD': [new_export],
-        'Average_Growth_Rate_Percent': [new_growth],
-        'Risk_Index': [new_risk],
-        'Overdue_Rate_Percent': [new_overdue]
-    })
-    prediction = model.predict(new_data)[0]
-    st.success(f"예측된 수출 적합도 점수: {prediction:,.0f}")
+if selected_scenario_name == "사용자 정의":
+    st.sidebar.subheader("사용자 정의 가중치 (%)")
+    col1, col2, col3 = st.sidebar.columns(3)
+    with col1:
+        custom_export = st.number_input("수출액", min_value=0, max_value=100, value=33, key="custom_export")
+    with col2:
+        custom_growth = st.number_input("성장률", min_value=0, max_value=100, value=33, key="custom_growth")
+    with col3:
+        custom_safety = st.number_input("안전도", min_value=0, max_value=100, value=34, key="custom_safety")
     
-    # 유사 국가 찾기
-    data['Score_Diff'] = abs(data['Export_Suitability_Score'] - prediction)
-    similar_countries = data.nsmallest(3, 'Score_Diff')
-    st.info("유사한 적합도 점수를 가진 국가:")
-    for i, row in similar_countries.iterrows():
-        st.write(f"- {row['Country']}: {row['Export_Suitability_Score']:,.0f} (차이: {row['Score_Diff']:,.0f})")
+    total_custom_weights = custom_export + custom_growth + custom_safety
+    if total_custom_weights != 100:
+        st.sidebar.warning(f"가중치 총합이 100%가 아닙니다! (현재: {total_custom_weights}%) - 자동으로 조정됩니다.")
+        # Simple adjustment for demonstration, more robust logic might be needed
+        if total_custom_weights > 0:
+            ratio = 100 / total_custom_weights
+            custom_export = round(custom_export * ratio)
+            custom_growth = round(custom_growth * ratio)
+            custom_safety = 100 - custom_export - custom_growth # Ensure sum is 100
+        else:
+            custom_export = 33
+            custom_growth = 33
+            custom_safety = 34
 
-# Footer
-st.markdown("---")
-st.caption("화장품 수출 인텔리전스 대시보드 © 2024 | Powered by Streamlit & sklearn")
+    selected_weights = {"export": custom_export, "growth": custom_growth, "safety": custom_safety}
+else:
+    selected_weights = scenario_options[selected_scenario_name]
+
+st.sidebar.write(f"현재 가중치: 수출액 {selected_weights["export"]}%, 성장률 {selected_weights["growth"]}%, 안전도 {selected_weights["safety"]}% (총합: {selected_weights["export"] + selected_weights["growth"] + selected_weights["safety"]}%) ")
+
+# Calculate scores for all countries based on selected weights
+scored_data = data.copy()
+scored_data["score"] = scored_data.apply(lambda row: calculate_score(row, selected_weights, data), axis=1)
+scored_data = scored_data.sort_values(by="score", ascending=False).reset_index(drop=True)
+
+# Tabs
+tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "Scenario Comparison", "Risk Analysis", "Score Simulation"])
+
+with tab1:
+    st.header("Dashboard")
+
+    # Top N countries selection
+    top_n = st.slider("상위 국가 수", min_value=5, max_value=20, value=10, step=5)
+    top_countries = scored_data.head(top_n)
+    bottom_countries = scored_data.tail(5)
+
+    st.subheader(f"상위 {top_n}개국 수출 적합도 점수")
+    st.bar_chart(top_countries.set_index("Country")["score"])
+
+    st.subheader("주요 지표")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Highest Export Value", f"{data["Export_Value"].max():,.0f} 천불",
+                  f"{data.loc[data["Export_Value"].idxmax(), "Country"]}")
+    with col2:
+        st.metric("Highest Growth Rate", f"{data["Growth_Rate"].max():.2f}%",
+                  f"{data.loc[data["Growth_Rate"].idxmax(), "Country"]}")
+    with col3:
+        st.metric("Lowest Risk", f"{data["Risk_Score"].min():.1f}",
+                  f"{data.loc[data["Risk_Score"].idxmin(), "Country"]}")
+
+    st.subheader("하이리스크 비추천 국가 (하위 5개국)")
+    st.bar_chart(bottom_countries.set_index("Country")["score"])
+
+with tab2:
+    st.header("시나리오별 상위 5개국 비교")
+    
+    scenario_comparison_data = []
+    for s_name, s_weights in scenario_options.items():
+        if s_weights is not None: # Exclude custom for this comparison
+            temp_data = data.copy()
+            temp_data["score"] = temp_data.apply(lambda row: calculate_score(row, s_weights, data), axis=1)
+            top_5 = temp_data.sort_values(by="score", ascending=False).head(5)
+            scenario_comparison_data.append({"scenario": s_name, "countries": top_5})
+
+    for sc in scenario_comparison_data:
+        st.subheader(f"{sc["scenario"]} 시나리오")
+        for idx, row in sc["countries"].iterrows():
+            st.write(f"{idx+1}. {row["Country"]} ({row["score"]:.1f}점)")
+
+with tab3:
+    st.header("리스크 분석")
+    st.write("리스크 점수와 적합도 점수 간의 관계를 시각화합니다.")
+
+    # Using Balanced_Score for Risk Analysis as per previous logic
+    risk_analysis_data = data.copy()
+    risk_analysis_data["score"] = risk_analysis_data["Balanced_Score"]
+
+    st.scatter_chart(risk_analysis_data, x="Risk_Score", y="score", size="Export_Value", color="Risk_Score")
+
+    st.subheader("리스크 분류")
+    st.write("저위험: 리스크 점수 ≤ 2.5")
+    st.write("중위험: 2.5 < 리스크 점수 ≤ 3.5")
+    st.write("고위험: 리스크 점수 > 3.5")
+
+with tab4:
+    st.header("수출 적합도 시뮬레이션")
+    st.write("가상의 국가 데이터를 입력하여 적합도 점수를 시뮬레이션합니다.")
+
+    sim_country = st.text_input("국가명", "가상국가")
+    sim_export = st.number_input("수출액 (천불)", min_value=0.0, value=10000.0)
+    sim_growth = st.number_input("성장률 (%)", value=10.0)
+    sim_risk = st.slider("리스크 점수 (1-5)", min_value=1.0, max_value=5.0, value=3.0, step=0.1)
+
+    simulated_item = {
+        "Country": sim_country,
+        "Export_Value": sim_export,
+        "Growth_Rate": sim_growth,
+        "Risk_Score": sim_risk
+    }
+
+    simulated_score = calculate_score(simulated_item, selected_weights, data)
+
+    st.subheader("시뮬레이션 결과")
+    st.write(f"선택된 시나리오: {selected_scenario_name}")
+    st.write(f"수출액 가중치: {selected_weights["export"]}%, 성장률 가중치: {selected_weights["growth"]}%, 안전도 가중치: {selected_weights["safety"]}%")
+    st.write(f"적합도 점수: **{simulated_score:.2f}점**")
+
+    if simulated_score >= 70:
+        st.write("적합도 등급: **고적합도**")
+    elif simulated_score >= 40:
+        st.write("적합도 등급: **중적합도**")
+    else:
+        st.write("적합도 등급: **저적합도**")
