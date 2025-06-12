@@ -526,6 +526,181 @@ def render_model_index():
         
         **→ 기업의 전략적 목표에 맞는 가중치 설정이 핵심!**
         """)
+        
+        # 가중합 시각화 추가
+        st.subheader("📊 가중합 결과 시각화")
+        
+        # 전략별 점수 데이터 준비
+        countries_viz = ['한국', '독일', '중국']
+        
+        # 각 전략별 점수 계산
+        export_focused = [35.5, 71.1, 71.8]  # 수출 중심
+        growth_focused = [40.25, 78, 51]     # 성장 중심 (0×0.2 + 85×0.6 + 95×0.2 등)
+        safety_focused = [74, 72, 38]        # 안전 중심 (0×0.2 + 85×0.2 + 95×0.6 등)
+        
+        # 다중 막대 차트로 전략별 비교
+        fig_weighted = go.Figure()
+        
+        fig_weighted.add_trace(go.Bar(
+            name='수출 중심 (60%, 25%, 15%)',
+            x=countries_viz,
+            y=export_focused,
+            marker_color='lightblue',
+            text=[f'{score:.1f}' for score in export_focused],
+            textposition='auto'
+        ))
+        
+        fig_weighted.add_trace(go.Bar(
+            name='성장 중심 (20%, 60%, 20%)',
+            x=countries_viz,
+            y=growth_focused,
+            marker_color='lightgreen',
+            text=[f'{score:.1f}' for score in growth_focused],
+            textposition='auto'
+        ))
+        
+        fig_weighted.add_trace(go.Bar(
+            name='안전 중심 (20%, 20%, 60%)',
+            x=countries_viz,
+            y=safety_focused,
+            marker_color='lightcoral',
+            text=[f'{score:.1f}' for score in safety_focused],
+            textposition='auto'
+        ))
+        
+        fig_weighted.update_layout(
+            title='전략별 가중합 점수 비교',
+            xaxis_title='국가',
+            yaxis_title='적합도 점수',
+            barmode='group',  # 그룹화된 막대
+            height=500,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+        
+        st.plotly_chart(fig_weighted, use_container_width=True)
+        
+        # 레이더 차트로 개별 국가 분석
+        st.subheader("🕸️ 국가별 세부 점수 레이더 차트")
+        
+        categories = ['수출액 점수', '성장률 점수', '안전도 점수']
+        
+        # 각 국가의 개별 점수
+        korea_scores = [0, 85, 95]
+        germany_scores = [54.4, 100, 90]
+        china_scores = [100, 45, 30]
+        
+        fig_radar = go.Figure()
+        
+        # 한국
+        fig_radar.add_trace(go.Scatterpolar(
+            r=korea_scores + [korea_scores[0]],  # 닫힌 도형을 위해 첫 값 반복
+            theta=categories + [categories[0]],
+            fill='toself',
+            name='한국',
+            line_color='#FF6B6B',
+            fillcolor='rgba(255, 107, 107, 0.3)'
+        ))
+        
+        # 독일
+        fig_radar.add_trace(go.Scatterpolar(
+            r=germany_scores + [germany_scores[0]],
+            theta=categories + [categories[0]],
+            fill='toself',
+            name='독일',
+            line_color='#4ECDC4',
+            fillcolor='rgba(78, 205, 196, 0.3)'
+        ))
+        
+        # 중국
+        fig_radar.add_trace(go.Scatterpolar(
+            r=china_scores + [china_scores[0]],
+            theta=categories + [categories[0]],
+            fill='toself',
+            name='중국',
+            line_color='#45B7D1',
+            fillcolor='rgba(69, 183, 209, 0.3)'
+        ))
+        
+        fig_radar.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 100],
+                    tickmode='linear',
+                    tick0=0,
+                    dtick=20
+                )
+            ),
+            showlegend=True,
+            title="국가별 세부 점수 비교 (0-100점)",
+            height=500
+        )
+        
+        st.plotly_chart(fig_radar, use_container_width=True)
+        
+        # 가중치 변화에 따른 순위 변화 히트맵
+        st.subheader("🔥 가중치 변화에 따른 순위 변화 히트맵")
+        
+        # 다양한 가중치 조합에서의 순위 계산
+        weight_combinations = {
+            '수출 70%': [0.7, 0.2, 0.1],
+            '수출 50%': [0.5, 0.3, 0.2],
+            '균형형': [0.33, 0.33, 0.34],
+            '성장 50%': [0.2, 0.5, 0.3],
+            '성장 70%': [0.1, 0.7, 0.2],
+            '안전 50%': [0.2, 0.3, 0.5],
+            '안전 70%': [0.1, 0.2, 0.7]
+        }
+        
+        rank_matrix = []
+        strategy_names = []
+        
+        for strategy_name, weights in weight_combinations.items():
+            korea_s = 0*weights[0] + 85*weights[1] + 95*weights[2]
+            germany_s = 54.4*weights[0] + 100*weights[1] + 90*weights[2]
+            china_s = 100*weights[0] + 45*weights[1] + 30*weights[2]
+            
+            scores = {'한국': korea_s, '독일': germany_s, '중국': china_s}
+            sorted_countries = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            
+            # 순위를 숫자로 변환 (1위=3점, 2위=2점, 3위=1점)
+            ranks = {}
+            for i, (country, score) in enumerate(sorted_countries):
+                ranks[country] = 3 - i
+            
+            rank_matrix.append([ranks['한국'], ranks['독일'], ranks['중국']])
+            strategy_names.append(strategy_name)
+        
+        fig_heatmap = px.imshow(
+            rank_matrix,
+            labels=dict(x="국가", y="전략", color="순위점수"),
+            x=['한국', '독일', '중국'],
+            y=strategy_names,
+            color_continuous_scale='RdYlGn',
+            aspect="auto",
+            title="전략별 국가 순위 변화 (진할수록 높은 순위)"
+        )
+        
+        # 각 셀에 실제 순위 표시
+        for i, strategy in enumerate(strategy_names):
+            for j, country in enumerate(['한국', '독일', '중국']):
+                rank_score = rank_matrix[i][j]
+                actual_rank = 4 - rank_score  # 3점=1위, 2점=2위, 1점=3위
+                fig_heatmap.add_annotation(
+                    x=j, y=i,
+                    text=f"{actual_rank}위",
+                    showarrow=False,
+                    font=dict(color="white" if rank_score <= 1.5 else "black", size=12, family="Arial Black")
+                )
+        
+        fig_heatmap.update_layout(height=400)
+        st.plotly_chart(fig_heatmap, use_container_width=True)
     
     # 전체 요약
     st.markdown("---")
