@@ -960,4 +960,33 @@ def main():
             elif score >= 50:
                 st.info("ℹ️ 중간 수준의 매력도를 가진 시장입니다. 신중한 접근이 필요합니다.")
             else:
-                st.warning("⚠️
+                st.warning("⚠️ 진출을 신중히 검토해야 할 시장입니다.")
+            
+            # 위험 요소 분석
+            if sim_risk >= 4:
+                st.warning("🚨 고위험 시장입니다. 무역보험 가입을 필수로 검토하세요.")
+            if sim_pdr >= 15:
+                st.warning("💳 연체율이 높습니다. 선결제 조건을 고려하세요.")
+            if sim_oa >= 90:
+                st.warning("📋 O/A 비율이 매우 높습니다. 결제 조건 재검토가 필요합니다.")
+            
+            # 기회 요소 분석
+            if sim_growth >= 50:
+                st.success("🚀 고성장 시장입니다. 선제적 진입을 고려하세요.")
+            if sim_risk <= 2:
+                st.success("🛡️ 저위험 시장입니다. 장기 투자 계획을 수립하세요.")
+
+    # 푸터
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: gray;'>
+        <p>K-Beauty Export Optimizer (KBEO) v2.0 | 
+        Developed by 미생s 팀 (장효석, 김성호, 김재형) | 
+        Data: KITA, KOTRA, K-SURE</p>
+        <p>📧 Contact: misaengs.team@gmail.com | 
+        📅 Last Updated: 2025.06.13</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
