@@ -240,7 +240,7 @@ def main():
     # 헤더
     st.markdown('<h1 class="main-header">🌟 K-Beauty Export Optimizer (KBEO)</h1>', 
                 unsafe_allow_html=True)
-    st.markdown("### MinMax 정규화 기반 화장품 수출 최적화 전략 분석 플랫폼")
+    st.markdown("### MinMax 정규화 + 가중합 기반 화장품 수출 최적화 전략 분석 플랫폼")
     
     # 데이터 로딩
     df = load_export_data()
