@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 # 페이지 설정 (반드시 첫 번째 명령어)
 st.set_page_config(
     page_title="K-Beauty Export Optimizer (KBEO)",
-    page_icon="🌟",  # 💄 아이콘을 🌟로 변경
+    page_icon="🌟",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -171,7 +171,6 @@ def perform_clustering(df, n_clusters=4):
 # 백테스팅 함수
 def perform_backtesting(df, weights, years=['2022', '2023', '2024']):
     """백테스팅 수행"""
-    # 가상의 과거 성과 데이터 생성
     results = []
     for year in years:
         temp_df = clean_data(df)
@@ -238,7 +237,7 @@ def create_safe_scatter(df, x, y, size=None, color=None, hover_name=None, **kwar
 
 # 메인 애플리케이션
 def main():
-    # 헤더 (아이콘 변경)
+    # 헤더
     st.markdown('<h1 class="main-header">🌟 K-Beauty Export Optimizer (KBEO)</h1>', 
                 unsafe_allow_html=True)
     st.markdown("### MinMax 정규화 기반 화장품 수출 최적화 전략 분석 플랫폼")
@@ -350,8 +349,9 @@ def main():
         
         # 동적 텍스트 적용: 분석 대상 국가 수에 맞춰 제목 변경
         actual_countries = len(analyzed_df)
-        st.subheader(f"🏆 상위 {min(10, actual_countries)}개국 수출 적합도")
-        top_display = analyzed_df.head(min(10, actual_countries))
+        display_count = min(10, actual_countries)
+        st.subheader(f"🏆 상위 {display_count}개국 수출 적합도")
+        top_display = analyzed_df.head(display_count)
         
         fig_bar = px.bar(
             top_display, 
@@ -668,44 +668,125 @@ def main():
         with col3:
             st.metric("🔴 고위험 국가", len(high_risk), f"{len(high_risk)/len(analyzed_df)*100:.1f}%")
         
-        # 위험도와 수출액 관계 - 안전한 버전
+        # 위험도와 수출액 관계 - 개선된 버전
         st.subheader("💰 위험도별 수출 현황")
         
-        fig_risk = create_safe_scatter(
-            analyzed_df,
-            x='Risk_Index',
-            y='Export_Value',
-            size='Growth_Rate',
-            color='PDR_Rate',
-            hover_name='Country',
-            title="위험도 vs 수출액",
-            labels={
-                'Risk_Index': '위험지수',
-                'Export_Value': '수출액 (억달러)',
-                'PDR_Rate': '연체율 (%)'
-            },
-            color_continuous_scale='Reds'
-        )
-        st.plotly_chart(fig_risk, use_container_width=True)
+        # 데이터 정리 및 검증
+        risk_df = analyzed_df.copy()
+        
+        # NaN 값 제거 및 데이터 타입 확인
+        risk_df = risk_df.dropna(subset=['Risk_Index', 'Export_Value', 'Growth_Rate', 'PDR_Rate'])
+        
+        # 음수나 0인 size 값 처리 (Growth_Rate가 음수일 수 있으므로 절댓값 + 1 사용)
+        risk_df['Size_Value'] = risk_df['Growth_Rate'].abs() + 1
+        
+        # 무한값 처리
+        risk_df = risk_df.replace([np.inf, -np.inf], np.nan).dropna()
+        
+        if len(risk_df) > 0:
+            try:
+                fig_risk = px.scatter(
+                    risk_df,
+                    x='Risk_Index',
+                    y='Export_Value',
+                    size='Size_Value',  # 절댓값 + 1로 처리된 값 사용
+                    color='PDR_Rate',
+                    hover_name='Country',
+                    hover_data={
+                        'Risk_Index': True,
+                        'Export_Value': ':.1f',
+                        'Growth_Rate': ':.1f',
+                        'PDR_Rate': ':.1f',
+                        'Size_Value': False  # hover에서 숨김
+                    },
+                    title="위험도 vs 수출액",
+                    labels={
+                        'Risk_Index': '위험지수',
+                        'Export_Value': '수출액 (억달러)',
+                        'PDR_Rate': '연체율 (%)',
+                        'Size_Value': '성장률 크기'
+                    },
+                    color_continuous_scale='Reds'
+                )
+                
+                # 위험도별 구분선 추가
+                fig_risk.add_vline(x=2.5, line_dash="dash", line_color="green", 
+                                  annotation_text="저위험|중위험", annotation_position="top")
+                fig_risk.add_vline(x=3.5, line_dash="dash", line_color="orange", 
+                                  annotation_text="중위험|고위험", annotation_position="top")
+                
+                # 차트 레이아웃 조정
+                fig_risk.update_layout(
+                    height=500,
+                    xaxis=dict(range=[0.5, 5.5], dtick=1),
+                    showlegend=True
+                )
+                
+                st.plotly_chart(fig_risk, use_container_width=True)
+                
+            except Exception as e:
+                st.error(f"차트 생성 중 오류 발생: {str(e)}")
+                
+                # 대체 차트: 단순 산점도
+                fig_simple = go.Figure()
+                
+                # 위험도별로 다른 색상으로 표시
+                colors = {1: 'green', 2: 'lightgreen', 3: 'yellow', 4: 'orange', 5: 'red'}
+                
+                for risk_level in risk_df['Risk_Index'].unique():
+                    risk_data = risk_df[risk_df['Risk_Index'] == risk_level]
+                    fig_simple.add_trace(go.Scatter(
+                        x=risk_data['Risk_Index'],
+                        y=risk_data['Export_Value'],
+                        mode='markers',
+                        name=f'위험도 {risk_level}',
+                        text=risk_data['Country'],
+                        marker=dict(
+                            color=colors.get(risk_level, 'blue'),
+                            size=10,
+                            opacity=0.7
+                        ),
+                        hovertemplate=
+                        '<b>%{text}</b><br>' +
+                        '위험지수: %{x}<br>' +
+                        '수출액: %{y:.1f}억달러<br>' +
+                        '<extra></extra>'
+                    ))
+                
+                fig_simple.update_layout(
+                    title="위험도별 수출 현황 (단순 버전)",
+                    xaxis_title="위험지수",
+                    yaxis_title="수출액 (억달러)",
+                    height=500
+                )
+                
+                st.plotly_chart(fig_simple, use_container_width=True)
+        else:
+            st.warning("표시할 데이터가 없습니다.")
         
         # 결제 위험 분석
         st.subheader("💳 결제 위험도 분석")
         
-        fig_payment = px.bar(
-            analyzed_df.sort_values('PDR_Rate', ascending=False).head(15),
-            x='Country',
-            y='PDR_Rate',
-            color='Risk_Index',
-            title="국가별 결제 연체율 (상위 15개국)",
-            labels={
-                'Country': '국가',
-                'PDR_Rate': '연체율 (%)',
-                'Risk_Index': '위험지수'
-            },
-            color_continuous_scale='RdYlGn_r'
-        )
-        fig_payment.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig_payment, use_container_width=True)
+        # 연체율 상위 15개국
+        payment_risk_df = analyzed_df.nlargest(15, 'PDR_Rate')
+        
+        if len(payment_risk_df) > 0:
+            fig_payment = px.bar(
+                payment_risk_df,
+                x='Country',
+                y='PDR_Rate',
+                color='Risk_Index',
+                title="국가별 결제 연체율 (상위 15개국)",
+                labels={
+                    'Country': '국가',
+                    'PDR_Rate': '연체율 (%)',
+                    'Risk_Index': '위험지수'
+                },
+                color_continuous_scale='RdYlGn_r'
+            )
+            fig_payment.update_xaxes(tickangle=-45)
+            fig_payment.update_layout(height=500)
+            st.plotly_chart(fig_payment, use_container_width=True)
         
         # O/A 비율 분석 - 안전한 버전
         st.subheader("📋 외상거래(O/A) 비율 분석")
@@ -716,28 +797,77 @@ def main():
         
         with col1:
             st.write("**O/A 비율 80% 이상 국가:**")
-            for _, row in high_oa.iterrows():
-                risk_level = "🔴" if row['Risk_Index'] > 3 else "🟡" if row['Risk_Index'] > 2 else "🟢"
-                st.write(f"• {row['Country']}: {row['OA_Ratio']:.1f}% {risk_level}")
+            if len(high_oa) > 0:
+                for _, row in high_oa.iterrows():
+                    risk_level = "🔴" if row['Risk_Index'] > 3 else "🟡" if row['Risk_Index'] > 2 else "🟢"
+                    st.write(f"• {row['Country']}: {row['OA_Ratio']:.1f}% {risk_level}")
+            else:
+                st.write("O/A 비율 80% 이상인 국가가 없습니다.")
         
         with col2:
-            fig_oa = create_safe_scatter(
-                analyzed_df,
-                x='OA_Ratio',
-                y='PDR_Rate',
-                size='Export_Value',
-                color='Risk_Index',
-                hover_name='Country',
-                title="O/A 비율 vs 연체율",
-                labels={
-                    'OA_Ratio': 'O/A 비율 (%)',
-                    'PDR_Rate': '연체율 (%)'
-                }
-            )
-            st.plotly_chart(fig_oa, use_container_width=True)
+            if len(analyzed_df) > 0:
+                # OA_Ratio 데이터 정리
+                oa_df = analyzed_df.dropna(subset=['OA_Ratio', 'PDR_Rate', 'Export_Value'])
+                
+                if len(oa_df) > 0:
+                    try:
+                        fig_oa = px.scatter(
+                            oa_df,
+                            x='OA_Ratio',
+                            y='PDR_Rate',
+                            size='Export_Value',
+                            color='Risk_Index',
+                            hover_name='Country',
+                            title="O/A 비율 vs 연체율",
+                            labels={
+                                'OA_Ratio': 'O/A 비율 (%)',
+                                'PDR_Rate': '연체율 (%)',
+                                'Export_Value': '수출액',
+                                'Risk_Index': '위험지수'
+                            }
+                        )
+                        st.plotly_chart(fig_oa, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"O/A 차트 생성 오류: {str(e)}")
+                        
+                        # 대체 테이블 제공
+                        st.write("**O/A 비율과 연체율 관계 (테이블 형태):**")
+                        display_df = oa_df[['Country', 'OA_Ratio', 'PDR_Rate', 'Risk_Index']].head(10)
+                        st.dataframe(display_df)
+        
+        # 위험도별 관리 권고사항
+        st.subheader("📋 위험도별 관리 권고사항")
+        
+        recommendations = {
+            "🟢 저위험 (지수 1-2)": [
+                "장기 계약 체결 가능",
+                "브랜드 마케팅 투자 확대", 
+                "현지 파트너십 강화",
+                "신용 거래 조건 유연하게 적용"
+            ],
+            "🟡 중위험 (지수 3)": [
+                "부분 보험 가입 권장",
+                "결제 조건 신중히 협상",
+                "정기적 신용도 모니터링",
+                "현지 시장 동향 주시"
+            ],
+            "🔴 고위험 (지수 4-5)": [
+                "무역보험 필수 가입",
+                "선결제 또는 신용장 조건",
+                "소량 거래로 시작", 
+                "현지 파트너 신용도 철저 검증"
+            ]
+        }
+        
+        for risk_level, recommendations_list in recommendations.items():
+            with st.expander(f"{risk_level} 관리 방안"):
+                for rec in recommendations_list:
+                    st.write(f"• {rec}")
     
     with tab6:
         st.header("🎮 수출 적합도 시뮬레이션")
+        
+        st.write("가상 시나리오를 입력하여 수출 적합도를 예측해보세요.")
         
         # 백테스팅 결과 먼저 표시
         st.subheader("📊 전략별 백테스팅 결과")
@@ -775,12 +905,12 @@ def main():
         with col1:
             st.subheader("📝 시나리오 입력")
             sim_country = st.text_input("국가명", "가상국가")
-            sim_export = st.number_input("수출액 (억달러)", 0.0, 3000.0, 100.0)
-            sim_growth = st.number_input("성장률 (%)", -50.0, 200.0, 20.0)
+            sim_export = st.number_input("수출액 (억달러)", 0.0, 10000.0, 100.0)
+            # 성장률 제한 해제
+            sim_growth = st.number_input("성장률 (%)", value=20.0)
             sim_risk = st.slider("위험지수", 1, 5, 3)
-            sim_pdr = st.number_input("연체율 (%)", 0.0, 50.0, 8.0)
+            sim_pdr = st.number_input("연체율 (%)", 0.0, 100.0, 8.0)
             sim_oa = st.number_input("O/A 비율 (%)", 0.0, 100.0, 75.0)
-            sim_continent = st.selectbox("대륙", ['Asia', 'Europe', 'North America', 'South America', 'Oceania', 'Africa'])
         
         with col2:
             st.subheader("🎯 예측 결과")
@@ -793,7 +923,7 @@ def main():
                 'Risk_Index': [sim_risk],
                 'PDR_Rate': [sim_pdr],
                 'OA_Ratio': [sim_oa],
-                'Continent': [sim_continent]
+                'Continent': ['Virtual']  # 가상 대륙
             })
             
             # 기존 데이터와 합쳐서 정규화
@@ -829,10 +959,18 @@ def main():
             st.write(f"- 안전 점수: {sim_result['Safety_Score']:.1f}점")
             st.write(f"- 결제 점수: {sim_result['Payment_Score']:.1f}점")
             
-            # 백분위 순위
-            rank = (analyzed_df['Suitability_Score'] < score).sum() + 1
-            percentile = (rank / len(analyzed_df)) * 100
-            st.write(f"**순위**: {len(analyzed_df)}개국 중 {rank}위 (상위 {100-percentile:.1f}%)")
+            # 순위 계산 수정 (기존 데이터 범위 내에서만)
+            actual_data_count = len(analyzed_df)
+            better_countries = (analyzed_df['Suitability_Score'] < score).sum()
+            rank = better_countries + 1
+            
+            # 순위가 데이터 범위를 벗어나지 않도록 보정
+            if rank > actual_data_count:
+                rank = actual_data_count
+            
+            percentile = ((actual_data_count - rank + 1) / actual_data_count) * 100
+            
+            st.write(f"**순위**: {actual_data_count}개국 중 {rank}위 (상위 {percentile:.1f}%)")
         
         # 유사 국가 추천
         st.subheader("🔍 유사 국가 분석")
@@ -843,11 +981,21 @@ def main():
         distances = []
         for _, row in analyzed_df.iterrows():
             # 정규화된 거리 계산
+            export_range = analyzed_df['Export_Value'].max() - analyzed_df['Export_Value'].min()
+            growth_range = analyzed_df['Growth_Rate'].max() - analyzed_df['Growth_Rate'].min()
+            pdr_range = analyzed_df['PDR_Rate'].max() - analyzed_df['PDR_Rate'].min()
+            
+            # 0으로 나누기 방지
+            export_distance = abs(row['Export_Value'] - sim_export) / max(export_range, 1)
+            growth_distance = abs(row['Growth_Rate'] - sim_growth) / max(growth_range, 1)
+            risk_distance = abs(row['Risk_Index'] - sim_risk) / 4  # 위험지수는 1-5 범위
+            pdr_distance = abs(row['PDR_Rate'] - sim_pdr) / max(pdr_range, 1)
+            
             distance = (
-                feature_weights[0] * abs(row['Export_Value'] - sim_export) / (analyzed_df['Export_Value'].max() - analyzed_df['Export_Value'].min()) +
-                feature_weights[1] * abs(row['Growth_Rate'] - sim_growth) / (analyzed_df['Growth_Rate'].max() - analyzed_df['Growth_Rate'].min()) +
-                feature_weights[2] * abs(row['Risk_Index'] - sim_risk) / 4 +  # 위험지수는 1-5 범위
-                feature_weights[3] * abs(row['PDR_Rate'] - sim_pdr) / (analyzed_df['PDR_Rate'].max() - analyzed_df['PDR_Rate'].min())
+                feature_weights[0] * export_distance +
+                feature_weights[1] * growth_distance +
+                feature_weights[2] * risk_distance +
+                feature_weights[3] * pdr_distance
             )
             distances.append(distance)
         
@@ -857,7 +1005,7 @@ def main():
         
         st.write("**가장 유사한 5개국:**")
         for i, (_, row) in enumerate(similar_countries.iterrows(), 1):
-            similarity_pct = (1 - row['Similarity']) * 100
+            similarity_pct = max(0, (1 - row['Similarity']) * 100)  # 음수 방지
             st.write(f"{i}. **{row['Country']}** (유사도: {similarity_pct:.1f}%) - "
                     f"적합도: {row['Suitability_Score']:.1f}점")
         
@@ -884,6 +1032,31 @@ def main():
             color_continuous_scale='RdYlGn_r'
         )
         st.plotly_chart(fig_comparison, use_container_width=True)
+        
+        # 시나리오 분석 요약
+        with st.expander("📋 분석 요약 및 권고사항"):
+            st.write("**입력된 시나리오 분석 결과:**")
+            
+            if score >= 70:
+                st.success("✅ 매우 유망한 시장으로 판단됩니다. 적극적인 진출을 권장합니다.")
+            elif score >= 50:
+                st.info("ℹ️ 중간 수준의 매력도를 가진 시장입니다. 신중한 접근이 필요합니다.")
+            else:
+                st.warning("⚠️ 진출을 신중히 검토해야 할 시장입니다.")
+            
+            # 위험 요소 분석
+            if sim_risk >= 4:
+                st.warning("🚨 고위험 시장입니다. 무역보험 가입을 필수로 검토하세요.")
+            if sim_pdr >= 15:
+                st.warning("💳 연체율이 높습니다. 선결제 조건을 고려하세요.")
+            if sim_oa >= 90:
+                st.warning("📋 O/A 비율이 매우 높습니다. 결제 조건 재검토가 필요합니다.")
+            
+            # 기회 요소 분석
+            if sim_growth >= 50:
+                st.success("🚀 고성장 시장입니다. 빠른 진출로 시장 선점 기회를 잡으세요.")
+            if sim_risk <= 2:
+                st.success("🛡️ 안전한 시장입니다. 장기적 투자와 브랜딩 전략을 고려하세요.")
 
     # 푸터
     st.markdown("---")
@@ -892,7 +1065,7 @@ def main():
         <p>🌟 K-Beauty Export Optimizer (KBEO) v2.0 | 
         Developed by 미생s 팀 (장효석, 김성호, 김재형) | 
         Data: KITA, KOTRA, K-SURE</p>
-        <p>📧 Contact: misaengs.team@gmail.com | 
+        <p>📧 Contact: kjhk3082@naver.com
         📅 Last Updated: 2025.06.13</p>
     </div>
     """, unsafe_allow_html=True)
