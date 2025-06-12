@@ -375,40 +375,69 @@ def render_model_index():
         # MinMax 정규화 적용
         normalized_values = 100 * (export_values - export_values.min()) / (export_values.max() - export_values.min())
         
-        # 시각화 생성
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        # Plotly로 차트 생성 (한글 지원 더 안정적)
+        col1, col2 = st.columns(2)
         
-        # 한글 폰트 설정 (가능한 경우)
-        try:
-            plt.rcParams['font.family'] = 'fonts-nanum'
-        except:
-            pass
+        with col1:
+            fig_original = px.bar(
+                x=countries, 
+                y=export_values,
+                title="원본 수출액 (억 달러)",
+                labels={'x': '국가', 'y': '수출액 (억 달러)'},
+                color_discrete_sequence=['lightblue']
+            )
+            fig_original.update_layout(height=400)
+            st.plotly_chart(fig_original, use_container_width=True)
         
-        # 원본 데이터 그래프
-        bars1 = ax1.bar(countries, export_values, color='lightblue', alpha=0.7, edgecolor='navy')
-        ax1.set_title('원본 수출액 (억 달러)', fontsize=14, pad=20)
-        ax1.set_ylabel('수출액 (억 달러)')
-        ax1.tick_params(axis='x', rotation=45)
+        with col2:
+            fig_normalized = px.bar(
+                x=countries,
+                y=normalized_values,
+                title="MinMax 정규화 점수 (0-100점)",
+                labels={'x': '국가', 'y': '정규화 점수'},
+                color_discrete_sequence=['lightcoral']
+            )
+            fig_normalized.update_layout(height=400, yaxis_range=[0, 110])
+            st.plotly_chart(fig_normalized, use_container_width=True)
         
-        # 값 표시
-        for bar, value in zip(bars1, export_values):
-            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 500,
-                    f'{value:,}', ha='center', va='bottom', fontsize=9)
-        
-        # 정규화된 데이터 그래프
-        bars2 = ax2.bar(countries, normalized_values, color='lightcoral', alpha=0.7, edgecolor='darkred')
-        ax2.set_title('MinMax 정규화 점수 (0-100점)', fontsize=14, pad=20)
-        ax2.set_ylabel('정규화 점수')
-        ax2.set_ylim(0, 110)
-        ax2.tick_params(axis='x', rotation=45)
-        
-        # 값 표시
-        for bar, value in zip(bars2, normalized_values):
-            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2,
-                    f'{value:.1f}', ha='center', va='bottom', fontsize=9)
-        
-        plt.tight_layout()
-        st.pyplot(fig)
+        # Matplotlib 차트도 백업으로 제공 (영어 제목)
+        with st.expander("📊 Matplotlib 차트 보기 (백업)"):
+            try:
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+                
+                # 한글 폰트 설정
+                plt.rcParams['font.family'] = ['Malgun Gothic', 'AppleGothic', 'DejaVu Sans', 'sans-serif']
+                plt.rcParams['axes.unicode_minus'] = False
+                
+                # 원본 데이터 그래프
+                bars1 = ax1.bar(countries, export_values, color='lightblue', alpha=0.7, edgecolor='navy')
+                ax1.set_title('Export Amount (Billion USD)', fontsize=14, pad=20)
+                ax1.set_ylabel('Export Amount (Billion USD)')
+                ax1.tick_params(axis='x', rotation=45)
+                
+                # 값 표시
+                for bar, value in zip(bars1, export_values):
+                    ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 500,
+                            f'{value:,}', ha='center', va='bottom', fontsize=9)
+                
+                # 정규화된 데이터 그래프
+                bars2 = ax2.bar(countries, normalized_values, color='lightcoral', alpha=0.7, edgecolor='darkred')
+                ax2.set_title('MinMax Normalized Score (0-100)', fontsize=14, pad=20)
+                ax2.set_ylabel('Normalized Score')
+                ax2.set_ylim(0, 110)
+                ax2.tick_params(axis='x', rotation=45)
+                
+                # 값 표시
+                for bar, value in zip(bars2, normalized_values):
+                    ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2,
+                            f'{value:.1f}', ha='center', va='bottom', fontsize=9)
+                
+                plt.tight_layout()
+                st.pyplot(fig)
+                
+            except Exception as e:
+                st.error(f"Matplotlib 차트 생성 오류: {str(e)}")
+                st.info("Plotly 차트를 대신 사용해주세요.")
         
         # 정규화의 효과 설명
         st.success("""
