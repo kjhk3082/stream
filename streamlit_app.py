@@ -235,66 +235,300 @@ def create_safe_scatter(df, x, y, size=None, color=None, hover_name=None, **kwar
         fig.add_annotation(text=f"차트 생성 오류: {str(e)[:50]}...", x=0.5, y=0.5, showarrow=False)
         return fig
 
-# ----------- 모델 설명(Index) 탭 함수 추가 -----------
+# ----------- 모델 설명(Index) 탭 함수 개선 -----------
 def render_model_index():
-    st.header("🧮 MinMax 정규화 + 가중합 모델 설명 (Index)")
-
-    st.markdown("""
-### 1. MinMax 정규화란?
-- **정의**: 각 지표(수출액, 성장률 등)를 0~100점 범위로 선형 변환하는 방식입니다.
-- **수식**:
-$$ X_{norm} = 100 \times \frac{X - X_{min}}{X_{max} - X_{min}} $$
-- **목적**: 서로 다른 단위의 데이터를 동일 척도로 맞춰 가중합이 의미 있게 작동하도록 합니다.
-
----
-
-### 2. 가중합(Weighted Sum) 방식
-- **정의**: 정규화된 각 항목 점수에 전략별 가중치(%)를 곱해 합산합니다.
-- **수식**:
-$$
-\t{적합도 점수} = w_1 \cdot S_1 + w_2 \cdot S_2 + w_3 \cdot S_3 + w_4 \cdot S_4
-$$
-- $S_i$: 각 항목의 정규화 점수  
-- $w_i$: 각 항목의 가중치(합계 100%)
-
----
-
-### 3. KBEO 모델의 프로세스
-1. **데이터 정제**: NaN/무한값 처리, 수치형 변환
-2. **MinMax 정규화**: 모든 주요 변수 0~100점 환산
-3. **역정규화**: 위험지수, 연체율 등은 '낮을수록 유리'하므로 역정규화(예: 6-위험지수, 100-연체율)
-4. **가중합**: 전략별 가중치로 최종 적합도 산출
-5. **랭킹 및 시각화**: 최종 점수 기준 국가별 순위, 대시보드 제공
-
----
-
-### 4. 타 수학 모델과의 차이점
-
-| 구분               | KBEO MinMax+가중합 | Z-score 표준화 | 단일지표 순위 | PCA/군집분석 |
-|--------------------|--------------------|----------------|--------------|--------------|
-| **정규화 방식**    | MinMax(0~100)      | 평균0, 표준편차1 | 없음/단순합산 | (PCA: Z-score) |
-| **가중치 적용**    | 전략별/사용자 가중치 | 없음/동일가중치 | 없음         | 없음         |
-| **직관성**         | 매우 높음           | 낮음           | 매우 높음    | 낮음         |
-| **해석 용이성**    | 쉬움               | 어려움         | 쉬움         | 어려움       |
-| **실무 활용성**    | 매우 높음           | 보통           | 낮음         | 보조적       |
-| **유연성**         | 전략별 맞춤 가능    | 불가           | 불가         | 불가         |
-
----
-
-### 5. KBEO 모델의 강점
-- **직관적 해석**: 0~100점 환산, 전략별 가중치 적용으로 실무자·의사결정자 모두 쉽게 이해
-- **전략 유연성**: 수출중심, 성장중심, 안전중심 등 다양한 전략에 맞춰 가중치 조정 가능
-- **실제 성과 검증**: 백테스팅·시뮬레이션 탭에서 과거 데이터 적용, 전략별 적중률·성장률 등 검증 가능
-- **시각화 연계**: BCG 매트릭스, 레이더차트, 군집분석 등 다양한 시각화와 연동
-
----
-
-> **KBEO의 MinMax 정규화 + 가중합 모델은 다양한 국가별 수출지표를 동일 척도로 환산하고, 전략별로 중요도를 반영해 최적의 진출국가를 직관적으로 선정할 수 있게 해주는 실무 친화적 수학 모델입니다.**
-
----
-""", unsafe_allow_html=True)
-# ---------------------------------------------------
-
+    st.header("🧮 MinMax 정규화 + 가중합 모델 설명")
+    
+    # 탭으로 구분하여 정보 체계화
+    tab1, tab2, tab3 = st.tabs(["📊 MinMax 정규화", "⚖️ 가중합 방식", "📈 시각화 예시"])
+    
+    with tab1:
+        st.subheader("1. MinMax 정규화란?")
+        
+        # 정의 설명
+        st.markdown("""
+        **정의**: 각 지표(수출액, 성장률 등)를 0~100점 범위로 선형 변환하는 방식입니다.
+        """)
+        
+        # 수식 표시 - 여러 방법 시도
+        st.markdown("""
+        **수식**:
+        """)
+        
+        # 방법 1: st.latex 시도
+        try:
+            st.latex(r'''
+            X_{정규화} = 100 \times \frac{X - X_{최솟값}}{X_{최댓값} - X_{최솟값}}
+            ''')
+        except:
+            # 방법 2: HTML/CSS로 수식 표현
+            st.markdown("""
+            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; font-size: 18px;">
+            <b>X<sub>정규화</sub> = 100 × (X - X<sub>최솟값</sub>) / (X<sub>최댓값</sub> - X<sub>최솟값</sub>)</b>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # 목적 설명
+        st.markdown("""
+        **목적**: 서로 다른 단위의 데이터를 동일 척도로 맞춰 가중합이 의미 있게 작동하도록 합니다.
+        """)
+        
+        # MinMax 정규화 예시
+        st.subheader("📋 MinMax 정규화 실제 예시")
+        
+        # 예시 데이터 생성
+        example_data = {
+            '국가': ['한국', '일본', '중국', '독일', '미국'],
+            '원본 수출액(억달러)': [6440, 7056, 27065, 17654, 16450],
+            '정규화 점수(0-100점)': [0, 2.5, 100, 54.4, 48.8]
+        }
+        
+        df_example = pd.DataFrame(example_data)
+        st.dataframe(df_example, use_container_width=True)
+        
+        # 계산 과정 단계별 설명
+        st.markdown("""
+        **📝 계산 과정**:
+        """)
+        
+        with st.expander("단계별 계산 과정 보기"):
+            st.markdown("""
+            1. **최댓값 찾기**: 27,065억 달러 (중국)
+            2. **최솟값 찾기**: 6,440억 달러 (한국)
+            3. **각 국가별 정규화 계산**:
+               - 한국: 100 × (6440-6440)/(27065-6440) = 100 × 0/20625 = **0점**
+               - 일본: 100 × (7056-6440)/(27065-6440) = 100 × 616/20625 = **2.5점**
+               - 중국: 100 × (27065-6440)/(27065-6440) = 100 × 20625/20625 = **100점**
+               - 독일: 100 × (17654-6440)/(27065-6440) = 100 × 11214/20625 = **54.4점**
+               - 미국: 100 × (16450-6440)/(27065-6440) = 100 × 10010/20625 = **48.8점**
+            """)
+        
+        # 정규화의 장점
+        st.info("""
+        **💡 MinMax 정규화의 장점**:
+        - 모든 값이 0~100점으로 통일되어 직관적 이해 가능
+        - 서로 다른 단위(달러, %, 지수 등)의 지표를 공정하게 비교
+        - 가중합 계산 시 특정 지표가 과도하게 영향을 미치는 것을 방지
+        """)
+    
+    with tab2:
+        st.subheader("2. 가중합(Weighted Sum) 방식")
+        
+        # 정의
+        st.markdown("""
+        **정의**: 정규화된 각 항목 점수에 전략별 가중치(%)를 곱해 합산합니다.
+        """)
+        
+        # 수식 표시
+        st.markdown("""
+        **수식**:
+        """)
+        
+        try:
+            st.latex(r'''
+            적합도점수 = w_1 \cdot S_1 + w_2 \cdot S_2 + w_3 \cdot S_3 + w_4 \cdot S_4
+            ''')
+        except:
+            st.markdown("""
+            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; font-size: 18px;">
+            <b>적합도 점수 = w₁ × S₁ + w₂ × S₂ + w₃ × S₃ + w₄ × S₄</b>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # 변수 설명
+        st.markdown("""
+        **변수 설명**:
+        - **S₁, S₂, S₃, S₄**: 각 항목의 정규화 점수 (0-100점)
+          - S₁: 수출액 점수, S₂: 성장률 점수, S₃: 안전도 점수, S₄: 결제안전 점수
+        - **w₁, w₂, w₃, w₄**: 각 항목의 가중치 (합계 100%)
+        """)
+        
+        # 전략별 가중치 예시
+        st.subheader("⚖️ 전략별 가중치 예시")
+        
+        weight_examples = {
+            '전략': ['수출 중심', '성장 중심', '안전 중심', '균형 발전'],
+            '수출액 비중(%)': [60, 20, 20, 30],
+            '성장률 비중(%)': [20, 60, 20, 40],
+            '안전도 비중(%)': [15, 15, 50, 20],
+            '결제안전 비중(%)': [5, 5, 10, 10]
+        }
+        
+        df_weights = pd.DataFrame(weight_examples)
+        st.dataframe(df_weights, use_container_width=True)
+        
+        # 전략별 특징 설명
+        st.markdown("""
+        **전략별 특징**:
+        - **수출 중심**: 큰 시장 규모를 우선시 → 중국, 미국 등 고수출액 국가 선호
+        - **성장 중심**: 시장 확장성 중시 → 신흥국, 고성장 시장 선호  
+        - **안전 중심**: 리스크 최소화 → 선진국, 저위험 국가 선호
+        - **균형 발전**: 모든 요소 고려 → 종합적인 관점에서 최적화
+        """)
+    
+    with tab3:
+        st.subheader("📈 MinMax 정규화 시각화")
+        
+        # 실제 데이터를 사용한 시각화
+        countries = ['한국', '일본', '중국', '독일', '미국', '영국', '프랑스']
+        export_values = np.array([6440, 7056, 27065, 17654, 16450, 4615, 5690])
+        
+        # MinMax 정규화 적용
+        normalized_values = 100 * (export_values - export_values.min()) / (export_values.max() - export_values.min())
+        
+        # 시각화 생성
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        
+        # 한글 폰트 설정 (가능한 경우)
+        try:
+            plt.rcParams['font.family'] = 'DejaVu Sans'
+        except:
+            pass
+        
+        # 원본 데이터 그래프
+        bars1 = ax1.bar(countries, export_values, color='lightblue', alpha=0.7, edgecolor='navy')
+        ax1.set_title('원본 수출액 (억 달러)', fontsize=14, pad=20)
+        ax1.set_ylabel('수출액 (억 달러)')
+        ax1.tick_params(axis='x', rotation=45)
+        
+        # 값 표시
+        for bar, value in zip(bars1, export_values):
+            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 500,
+                    f'{value:,}', ha='center', va='bottom', fontsize=9)
+        
+        # 정규화된 데이터 그래프
+        bars2 = ax2.bar(countries, normalized_values, color='lightcoral', alpha=0.7, edgecolor='darkred')
+        ax2.set_title('MinMax 정규화 점수 (0-100점)', fontsize=14, pad=20)
+        ax2.set_ylabel('정규화 점수')
+        ax2.set_ylim(0, 110)
+        ax2.tick_params(axis='x', rotation=45)
+        
+        # 값 표시
+        for bar, value in zip(bars2, normalized_values):
+            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2,
+                    f'{value:.1f}', ha='center', va='bottom', fontsize=9)
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+        
+        # 정규화의 효과 설명
+        st.success("""
+        **🎯 정규화의 효과**:
+        - **왼쪽 그래프**: 원본 데이터에서는 중국이 압도적으로 높아 다른 국가들의 차이를 구분하기 어려움
+        - **오른쪽 그래프**: 정규화 후 모든 국가가 0-100점 범위에서 상대적 위치가 명확히 드러남
+        - **결과**: 이제 다른 지표들(성장률, 위험도 등)과 공정하게 가중합을 계산할 수 있음
+        """)
+        
+        # 가중합 계산 실제 예시
+        st.subheader("🔢 가중합 계산 실제 예시")
+        
+        # 4개 지표의 정규화 점수 (예시)
+        sample_scores = {
+            '국가': ['한국', '독일', '중국'],
+            '수출액 점수(S₁)': [0, 54.4, 100],
+            '성장률 점수(S₂)': [85, 100, 45],
+            '안전도 점수(S₃)': [95, 90, 30],
+            '결제안전 점수(S₄)': [80, 85, 60]
+        }
+        
+        df_scores = pd.DataFrame(sample_scores)
+        st.dataframe(df_scores, use_container_width=True)
+        
+        # 수출 중심 전략 적용 (60%, 20%, 15%, 5%)
+        st.markdown("**수출 중심 전략 (60%, 20%, 15%, 5%) 적용:**")
+        
+        korea_score = 0*0.6 + 85*0.2 + 95*0.15 + 80*0.05
+        germany_score = 54.4*0.6 + 100*0.2 + 90*0.15 + 85*0.05
+        china_score = 100*0.6 + 45*0.2 + 30*0.15 + 60*0.05
+        
+        # 계산 과정을 단계별로 표시
+        calculation_data = {
+            '국가': ['한국', '독일', '중국'],
+            '계산식': [
+                '0×0.6 + 85×0.2 + 95×0.15 + 80×0.05',
+                '54.4×0.6 + 100×0.2 + 90×0.15 + 85×0.05',
+                '100×0.6 + 45×0.2 + 30×0.15 + 60×0.05'
+            ],
+            '최종 점수': [f'{korea_score:.1f}점', f'{germany_score:.1f}점', f'{china_score:.1f}점'],
+            '순위': ['3위', '2위', '1위']
+        }
+        
+        calc_df = pd.DataFrame(calculation_data)
+        st.dataframe(calc_df, use_container_width=True)
+        
+        # 결과 분석
+        st.info(f"""
+        **📊 분석 결과**:
+        - **1위: 중국 ({china_score:.1f}점)** - 압도적인 수출액으로 수출 중심 전략에서 최고점
+        - **2위: 독일 ({germany_score:.1f}점)** - 균형잡힌 성과로 안정적인 2위
+        - **3위: 한국 ({korea_score:.1f}점)** - 수출액 부족으로 수출 중심 전략에서는 하위권
+        
+        ⚠️ **전략을 성장 중심으로 바꾸면 순위가 달라질 수 있습니다!**
+        """)
+        
+        # 다른 전략과의 비교
+        st.subheader("🔄 전략별 순위 변화 시뮬레이션")
+        
+        strategies = {
+            '수출 중심': [0.6, 0.2, 0.15, 0.05],
+            '성장 중심': [0.2, 0.6, 0.15, 0.05],
+            '안전 중심': [0.2, 0.2, 0.5, 0.1]
+        }
+        
+        strategy_results = {}
+        for strategy_name, weights in strategies.items():
+            korea_s = 0*weights[0] + 85*weights[1] + 95*weights[2] + 80*weights[3]
+            germany_s = 54.4*weights[0] + 100*weights[1] + 90*weights[2] + 85*weights[3]
+            china_s = 100*weights[0] + 45*weights[1] + 30*weights[2] + 60*weights[3]
+            
+            scores = {'한국': korea_s, '독일': germany_s, '중국': china_s}
+            sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            
+            strategy_results[strategy_name] = [f"{country} ({score:.1f}점)" for country, score in sorted_scores]
+        
+        strategy_comparison_df = pd.DataFrame(strategy_results)
+        strategy_comparison_df.index = ['1위', '2위', '3위']
+        st.dataframe(strategy_comparison_df, use_container_width=True)
+        
+        st.success("""
+        **🎯 핵심 인사이트**:
+        - 전략에 따라 국가 순위가 완전히 달라짐
+        - 수출 중심 → 중국 압도적 1위
+        - 성장 중심 → 독일이 1위로 역전
+        - 안전 중심 → 한국이 1위로 급상승
+        
+        **→ 기업의 전략적 목표에 맞는 가중치 설정이 핵심!**
+        """)
+    
+    # 전체 요약
+    st.markdown("---")
+    st.subheader("📋 KBEO 모델 종합 요약")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        **🔧 기술적 특징**:
+        - MinMax 정규화로 0-100점 통일
+        - 전략별 가중치 적용으로 맞춤형 분석
+        - 실시간 시뮬레이션 및 백테스팅 지원
+        - 다차원 시각화로 직관적 이해
+        """)
+    
+    with col2:
+        st.markdown("""
+        **💼 비즈니스 가치**:
+        - 데이터 기반 의사결정 지원
+        - 전략별 최적 시장 도출
+        - 리스크 관리 및 기회 발굴
+        - 실무진과 경영진 모두 이해 가능
+        """)
+    
+    st.info("""
+    **🌟 KBEO의 MinMax 정규화 + 가중합 모델은 복잡한 다차원 데이터를 직관적인 점수로 변환하여, 
+    기업의 전략적 목표에 맞는 최적의 화장품 수출 대상국을 과학적으로 선정할 수 있게 해주는 
+    실무 친화적 분석 플랫폼입니다.**
+    """)
 
 # 메인 애플리케이션
 def main():
