@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 # 페이지 설정 (반드시 첫 번째 명령어)
 st.set_page_config(
     page_title="K-Beauty Export Optimizer (KBEO)",
-    page_icon="💄",
+    page_icon="🌟",  # 💄 아이콘을 🌟로 변경
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -100,6 +100,24 @@ def load_export_data():
     }
     return pd.DataFrame(data)
 
+# 데이터 정리 함수
+def clean_data(df):
+    """데이터에서 NaN 값 처리"""
+    df = df.copy()
+    
+    # NaN 값을 처리
+    numeric_columns = ['Export_Value', 'Growth_Rate', 'Risk_Index', 'PDR_Rate', 'OA_Ratio']
+    for col in numeric_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = df[col].fillna(df[col].median())
+    
+    # 무한값 처리
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.fillna(df.median(numeric_only=True))
+    
+    return df
+
 # MinMax 정규화 함수
 def minmax_normalize(series):
     """MinMax 정규화 수행"""
@@ -110,7 +128,7 @@ def minmax_normalize(series):
 # 수출 적합도 점수 계산
 def calculate_export_suitability(df, weights):
     """가중합 기반 수출 적합도 점수 계산"""
-    df_copy = df.copy()
+    df_copy = clean_data(df)
     
     # MinMax 정규화
     df_copy['Export_Score'] = minmax_normalize(df_copy['Export_Value'])
@@ -131,12 +149,13 @@ def calculate_export_suitability(df, weights):
 # K-means 군집분석
 def perform_clustering(df, n_clusters=4):
     """K-means 군집분석 수행"""
+    df_clean = clean_data(df)
     features = ['Export_Value', 'Growth_Rate', 'Risk_Index', 'PDR_Rate']
     scaler = StandardScaler()
-    scaled_features = scaler.fit_transform(df[features])
+    scaled_features = scaler.fit_transform(df_clean[features])
     
     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    df['Cluster'] = kmeans.fit_predict(scaled_features)
+    df_clean['Cluster'] = kmeans.fit_predict(scaled_features)
     
     # 클러스터 라벨링
     cluster_labels = {
@@ -145,9 +164,9 @@ def perform_clustering(df, n_clusters=4):
         2: '저성장-저위험',
         3: '저성장-고위험'
     }
-    df['Cluster_Label'] = df['Cluster'].map(cluster_labels)
+    df_clean['Cluster_Label'] = df_clean['Cluster'].map(cluster_labels)
     
-    return df, kmeans, scaler
+    return df_clean, kmeans, scaler
 
 # 백테스팅 함수
 def perform_backtesting(df, weights, years=['2022', '2023', '2024']):
@@ -155,8 +174,7 @@ def perform_backtesting(df, weights, years=['2022', '2023', '2024']):
     # 가상의 과거 성과 데이터 생성
     results = []
     for year in years:
-        # 실제로는 과거 데이터를 사용해야 하지만, 여기서는 시뮬레이션
-        temp_df = df.copy()
+        temp_df = clean_data(df)
         temp_df['Year'] = year
         
         # 연도별 성과 변동 시뮬레이션
@@ -181,10 +199,47 @@ def perform_backtesting(df, weights, years=['2022', '2023', '2024']):
     
     return results
 
+# 안전한 plotly 차트 생성 함수
+def create_safe_scatter(df, x, y, size=None, color=None, hover_name=None, **kwargs):
+    """NaN 값을 처리한 안전한 scatter plot 생성"""
+    df_plot = df.copy()
+    
+    # 필수 컬럼 체크 및 NaN 처리
+    required_cols = [x, y]
+    if size:
+        required_cols.append(size)
+    if color:
+        required_cols.append(color)
+        
+    for col in required_cols:
+        if col in df_plot.columns:
+            df_plot[col] = pd.to_numeric(df_plot[col], errors='coerce')
+    
+    # NaN이 있는 행 제거
+    df_plot = df_plot.dropna(subset=required_cols)
+    
+    # 무한값 처리
+    df_plot = df_plot.replace([np.inf, -np.inf], np.nan).dropna(subset=required_cols)
+    
+    if len(df_plot) == 0:
+        # 빈 차트 반환
+        fig = go.Figure()
+        fig.add_annotation(text="데이터가 없습니다", x=0.5, y=0.5, showarrow=False)
+        return fig
+    
+    try:
+        fig = px.scatter(df_plot, x=x, y=y, size=size, color=color, hover_name=hover_name, **kwargs)
+        return fig
+    except Exception as e:
+        # 에러 발생 시 기본 차트 반환
+        fig = go.Figure()
+        fig.add_annotation(text=f"차트 생성 오류: {str(e)[:50]}...", x=0.5, y=0.5, showarrow=False)
+        return fig
+
 # 메인 애플리케이션
 def main():
-    # 헤더
-    st.markdown('<h1 class="main-header">💄 K-Beauty Export Optimizer (KBEO)</h1>', 
+    # 헤더 (아이콘 변경)
+    st.markdown('<h1 class="main-header">🌟 K-Beauty Export Optimizer (KBEO)</h1>', 
                 unsafe_allow_html=True)
     st.markdown("### MinMax 정규화 기반 화장품 수출 최적화 전략 분석 플랫폼")
     
@@ -293,17 +348,18 @@ def main():
                 f"전체 {len(analyzed_df)}개국"
             )
         
-        # 상위 10개국 수출 적합도 차트
-        st.subheader("🏆 상위 10개국 수출 적합도")
-        top_10 = analyzed_df.head(10)
+        # 동적 텍스트 적용: 분석 대상 국가 수에 맞춰 제목 변경
+        actual_countries = len(analyzed_df)
+        st.subheader(f"🏆 상위 {min(10, actual_countries)}개국 수출 적합도")
+        top_display = analyzed_df.head(min(10, actual_countries))
         
         fig_bar = px.bar(
-            top_10, 
+            top_display, 
             x='Country', 
             y='Suitability_Score',
             color='Risk_Index',
             color_continuous_scale='RdYlGn_r',
-            title=f"{selected_strategy} 전략 기준 수출 적합도",
+            title=f"{selected_strategy} 전략 기준 수출 적합도 (총 {actual_countries}개국 중 상위 {len(top_display)}개국)",
             labels={
                 'Country': '국가',
                 'Suitability_Score': '수출 적합도 점수',
@@ -313,10 +369,10 @@ def main():
         fig_bar.update_layout(height=400, xaxis_tickangle=-45)
         st.plotly_chart(fig_bar, use_container_width=True)
         
-        # 수출액 vs 성장률 산점도 (BCG 매트릭스)
+        # 수출액 vs 성장률 산점도 (BCG 매트릭스) - 안전한 버전
         st.subheader("📈 BCG 매트릭스 (수출액 vs 성장률)")
         
-        fig_scatter = px.scatter(
+        fig_scatter = create_safe_scatter(
             analyzed_df,
             x='Export_Value',
             y='Growth_Rate', 
@@ -334,31 +390,14 @@ def main():
         )
         
         # 사분면 구분선 추가
-        median_export = analyzed_df['Export_Value'].median()
-        median_growth = analyzed_df['Growth_Rate'].median()
-        
-        fig_scatter.add_hline(y=median_growth, line_dash="dash", line_color="gray", 
-                             annotation_text="성장률 중위값")
-        fig_scatter.add_vline(x=median_export, line_dash="dash", line_color="gray",
-                             annotation_text="수출액 중위값")
-        
-        # 사분면 라벨 추가
-        fig_scatter.add_annotation(x=analyzed_df['Export_Value'].max()*0.8, 
-                                  y=analyzed_df['Growth_Rate'].max()*0.8,
-                                  text="Star<br>(고수출-고성장)", showarrow=False,
-                                  bgcolor="lightgreen", opacity=0.7)
-        fig_scatter.add_annotation(x=analyzed_df['Export_Value'].min()*1.2, 
-                                  y=analyzed_df['Growth_Rate'].max()*0.8,
-                                  text="Question Mark<br>(저수출-고성장)", showarrow=False,
-                                  bgcolor="yellow", opacity=0.7)
-        fig_scatter.add_annotation(x=analyzed_df['Export_Value'].max()*0.8, 
-                                  y=analyzed_df['Growth_Rate'].min()*1.2,
-                                  text="Cash Cow<br>(고수출-저성장)", showarrow=False,
-                                  bgcolor="lightblue", opacity=0.7)
-        fig_scatter.add_annotation(x=analyzed_df['Export_Value'].min()*1.2, 
-                                  y=analyzed_df['Growth_Rate'].min()*1.2,
-                                  text="Dog<br>(저수출-저성장)", showarrow=False,
-                                  bgcolor="lightcoral", opacity=0.7)
+        if len(analyzed_df) > 0:
+            median_export = analyzed_df['Export_Value'].median()
+            median_growth = analyzed_df['Growth_Rate'].median()
+            
+            fig_scatter.add_hline(y=median_growth, line_dash="dash", line_color="gray", 
+                                 annotation_text="성장률 중위값")
+            fig_scatter.add_vline(x=median_export, line_dash="dash", line_color="gray",
+                                 annotation_text="수출액 중위값")
         
         fig_scatter.update_layout(height=600)
         st.plotly_chart(fig_scatter, use_container_width=True)
@@ -377,12 +416,13 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            fig_pie = px.pie(
-                values=continent_summary['총수출액'],
-                names=continent_summary.index,
-                title="대륙별 수출액 비중"
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            if len(continent_summary) > 0:
+                fig_pie = px.pie(
+                    values=continent_summary['총수출액'],
+                    names=continent_summary.index,
+                    title="대륙별 수출액 비중"
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
         
         with col2:
             st.dataframe(continent_summary, use_container_width=True)
@@ -437,7 +477,7 @@ def main():
             ]
             
             fig_radar.add_trace(go.Scatterpolar(
-                r=values + [values[0]],  # 첫 번째 값을 마지막에 추가하여 폐곡선 만들기
+                r=values + [values[0]],
                 theta=categories + [categories[0]],
                 fill='toself',
                 name=country['Country'],
@@ -499,7 +539,7 @@ def main():
         st.subheader("🗺️ 군집별 국가 분포")
         
         cluster_summary = clustered_df.groupby('Cluster_Label').agg({
-            'Country': lambda x: ', '.join(x.head(5).tolist()),  # 상위 5개국만 표시
+            'Country': lambda x: ', '.join(x.head(5).tolist()),
             'Export_Value': 'mean',
             'Growth_Rate': 'mean', 
             'Risk_Index': 'mean',
@@ -509,59 +549,38 @@ def main():
         
         st.dataframe(cluster_summary, use_container_width=True)
         
-        # 3D 군집 시각화
+        # 3D 군집 시각화 - 안전한 버전
         st.subheader("🎲 3D 군집 분석")
         
-        fig_3d = px.scatter_3d(
-            clustered_df,
-            x='Export_Value',
-            y='Growth_Rate',
-            z='Risk_Index',
-            color='Cluster_Label',
-            size='Suitability_Score',
-            hover_name='Country',
-            title="3차원 국가 포지셔닝",
-            labels={
-                'Export_Value': '수출액',
-                'Growth_Rate': '성장률',
-                'Risk_Index': '위험지수'
-            }
-        )
-        
-        st.plotly_chart(fig_3d, use_container_width=True)
-        
-        # 군집별 상세 분석
-        st.subheader("📈 군집별 상세 분석")
-        
-        selected_cluster = st.selectbox("분석할 군집 선택", clustered_df['Cluster_Label'].unique())
-        cluster_data = clustered_df[clustered_df['Cluster_Label'] == selected_cluster]
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write(f"**{selected_cluster} 클러스터 국가 목록:**")
-            for _, row in cluster_data.iterrows():
-                risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
-                st.write(f"• {row['Country']} {risk_emoji} (적합도: {row['Suitability_Score']:.1f})")
-        
-        with col2:
-            # 클러스터 특성 차트
-            metrics = ['Export_Score', 'Growth_Score', 'Safety_Score', 'Payment_Score']
-            avg_scores = [cluster_data[metric].mean() for metric in metrics]
-            
-            fig_cluster = go.Figure(data=go.Scatterpolar(
-                r=avg_scores + [avg_scores[0]],
-                theta=['수출', '성장', '안전', '결제'] + ['수출'],
-                fill='toself',
-                name=selected_cluster
-            ))
-            
-            fig_cluster.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-                title=f"{selected_cluster} 평균 특성"
+        try:
+            fig_3d = px.scatter_3d(
+                clustered_df,
+                x='Export_Value',
+                y='Growth_Rate',
+                z='Risk_Index',
+                color='Cluster_Label',
+                size='Suitability_Score',
+                hover_name='Country',
+                title="3차원 국가 포지셔닝",
+                labels={
+                    'Export_Value': '수출액',
+                    'Growth_Rate': '성장률',
+                    'Risk_Index': '위험지수'
+                }
             )
-            
-            st.plotly_chart(fig_cluster, use_container_width=True)
+            st.plotly_chart(fig_3d, use_container_width=True)
+        except Exception as e:
+            st.error(f"3D 차트 생성 중 오류가 발생했습니다: {str(e)}")
+            # 대체 2D 차트 제공
+            fig_2d = create_safe_scatter(
+                clustered_df,
+                x='Export_Value',
+                y='Growth_Rate',
+                color='Cluster_Label',
+                hover_name='Country',
+                title="2D 국가 포지셔닝 (3D 차트 대체)"
+            )
+            st.plotly_chart(fig_2d, use_container_width=True)
     
     with tab4:
         st.header("📈 성장성 분석")
@@ -598,10 +617,10 @@ def main():
         )
         st.plotly_chart(fig_box, use_container_width=True)
         
-        # 성장률 vs 수출액 관계
+        # 성장률 vs 수출액 관계 - 안전한 버전
         st.subheader("💹 성장률과 수출액의 관계")
         
-        fig_growth_export = px.scatter(
+        fig_growth_export = create_safe_scatter(
             analyzed_df,
             x='Export_Value',
             y='Growth_Rate',
@@ -613,13 +632,6 @@ def main():
                 'Export_Value': '수출액 (억달러)',
                 'Growth_Rate': '성장률 (%)'
             }
-        )
-        
-        # 추세선 추가
-        z = np.polyfit(analyzed_df['Export_Value'], analyzed_df['Growth_Rate'], 1)
-        p = np.poly1d(z)
-        fig_growth_export.add_traces(
-            px.line(x=analyzed_df['Export_Value'], y=p(analyzed_df['Export_Value'])).data
         )
         
         st.plotly_chart(fig_growth_export, use_container_width=True)
@@ -638,20 +650,6 @@ def main():
             low_growth = analyzed_df.nsmallest(10, 'Growth_Rate')
             for i, (_, row) in enumerate(low_growth.iterrows(), 1):
                 st.write(f"{i}. **{row['Country']}**: {row['Growth_Rate']:.1f}%")
-        
-        # 성장률 예측 모델 (간단한 선형 모델)
-        st.subheader("🔮 성장률 예측 분석")
-        
-        # 위험도와 성장률의 관계
-        correlation = analyzed_df['Risk_Index'].corr(analyzed_df['Growth_Rate'])
-        st.write(f"**위험지수와 성장률의 상관관계**: {correlation:.3f}")
-        
-        if correlation < -0.3:
-            st.success("위험도가 낮을수록 성장률이 높은 경향 (안정적 성장)")
-        elif correlation > 0.3:
-            st.warning("위험도가 높을수록 성장률이 높은 경향 (고위험-고수익)")
-        else:
-            st.info("위험도와 성장률 간 뚜렷한 관계 없음")
     
     with tab5:
         st.header("⚠️ 리스크 분석")
@@ -670,10 +668,10 @@ def main():
         with col3:
             st.metric("🔴 고위험 국가", len(high_risk), f"{len(high_risk)/len(analyzed_df)*100:.1f}%")
         
-        # 위험도와 수출액 관계
+        # 위험도와 수출액 관계 - 안전한 버전
         st.subheader("💰 위험도별 수출 현황")
         
-        fig_risk = px.scatter(
+        fig_risk = create_safe_scatter(
             analyzed_df,
             x='Risk_Index',
             y='Export_Value',
@@ -709,7 +707,7 @@ def main():
         fig_payment.update_xaxes(tickangle=-45)
         st.plotly_chart(fig_payment, use_container_width=True)
         
-        # O/A 비율 분석
+        # O/A 비율 분석 - 안전한 버전
         st.subheader("📋 외상거래(O/A) 비율 분석")
         
         high_oa = analyzed_df[analyzed_df['OA_Ratio'] > 80].sort_values('OA_Ratio', ascending=False)
@@ -723,7 +721,7 @@ def main():
                 st.write(f"• {row['Country']}: {row['OA_Ratio']:.1f}% {risk_level}")
         
         with col2:
-            fig_oa = px.scatter(
+            fig_oa = create_safe_scatter(
                 analyzed_df,
                 x='OA_Ratio',
                 y='PDR_Rate',
@@ -737,73 +735,9 @@ def main():
                 }
             )
             st.plotly_chart(fig_oa, use_container_width=True)
-        
-        # 리스크 매트릭스
-        st.subheader("🎯 리스크 매트릭스")
-        
-        # 위험도와 연체율을 기준으로 매트릭스 생성
-        risk_matrix = analyzed_df.copy()
-        risk_matrix['Risk_Category'] = pd.cut(risk_matrix['Risk_Index'], 
-                                            bins=[0, 2, 3, 5], 
-                                            labels=['저위험', '중위험', '고위험'])
-        risk_matrix['PDR_Category'] = pd.cut(risk_matrix['PDR_Rate'], 
-                                           bins=[0, 5, 10, 100], 
-                                           labels=['저연체', '중연체', '고연체'])
-        
-        matrix_summary = risk_matrix.groupby(['Risk_Category', 'PDR_Category']).agg({
-            'Country': 'count',
-            'Export_Value': 'sum'
-        }).reset_index()
-        
-        fig_matrix = px.scatter(
-            matrix_summary,
-            x='Risk_Category',
-            y='PDR_Category',
-            size='Export_Value',
-            color='Country',
-            title="리스크 매트릭스 (위험도 vs 연체율)",
-            labels={
-                'Risk_Category': '위험도 카테고리',
-                'PDR_Category': '연체율 카테고리',
-                'Country': '국가 수',
-                'Export_Value': '총 수출액'
-            }
-        )
-        st.plotly_chart(fig_matrix, use_container_width=True)
-        
-        # 리스크 관리 권고사항
-        st.subheader("📋 위험도별 관리 권고사항")
-        
-        recommendations = {
-            "🟢 저위험 (지수 1-2)": [
-                "장기 계약 체결 가능",
-                "브랜드 마케팅 투자 확대",
-                "현지 파트너십 강화",
-                "신용 거래 조건 유연하게 적용"
-            ],
-            "🟡 중위험 (지수 3)": [
-                "부분 보험 가입 권장",
-                "결제 조건 신중히 협상",
-                "정기적 신용도 모니터링",
-                "현지 시장 동향 주시"
-            ],
-            "🔴 고위험 (지수 4-5)": [
-                "무역보험 필수 가입",
-                "선결제 또는 신용장 조건",
-                "소량 거래로 시작",
-                "현지 파트너 신용도 철저 검증"
-            ]
-        }
-        
-        for risk_level, recommendations_list in recommendations.items():
-            with st.expander(f"{risk_level} 관리 방안"):
-                for rec in recommendations_list:
-                    st.write(f"• {rec}")
     
     with tab6:
         st.header("🎮 수출 적합도 시뮬레이션")
-        
-        st.write("가상 시나리오를 입력하여 수출 적합도를 예측해보세요.")
         
         # 백테스팅 결과 먼저 표시
         st.subheader("📊 전략별 백테스팅 결과")
@@ -950,37 +884,12 @@ def main():
             color_continuous_scale='RdYlGn_r'
         )
         st.plotly_chart(fig_comparison, use_container_width=True)
-        
-        # 시나리오 분석 요약
-        with st.expander("📋 분석 요약 및 권고사항"):
-            st.write("**입력된 시나리오 분석 결과:**")
-            
-            if score >= 70:
-                st.success("✅ 매우 유망한 시장으로 판단됩니다. 적극적인 진출을 권장합니다.")
-            elif score >= 50:
-                st.info("ℹ️ 중간 수준의 매력도를 가진 시장입니다. 신중한 접근이 필요합니다.")
-            else:
-                st.warning("⚠️ 진출을 신중히 검토해야 할 시장입니다.")
-            
-            # 위험 요소 분석
-            if sim_risk >= 4:
-                st.warning("🚨 고위험 시장입니다. 무역보험 가입을 필수로 검토하세요.")
-            if sim_pdr >= 15:
-                st.warning("💳 연체율이 높습니다. 선결제 조건을 고려하세요.")
-            if sim_oa >= 90:
-                st.warning("📋 O/A 비율이 매우 높습니다. 결제 조건 재검토가 필요합니다.")
-            
-            # 기회 요소 분석
-            if sim_growth >= 50:
-                st.success("🚀 고성장 시장입니다. 선제적 진입을 고려하세요.")
-            if sim_risk <= 2:
-                st.success("🛡️ 저위험 시장입니다. 장기 투자 계획을 수립하세요.")
 
     # 푸터
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: gray;'>
-        <p>K-Beauty Export Optimizer (KBEO) v2.0 | 
+        <p>🌟 K-Beauty Export Optimizer (KBEO) v2.0 | 
         Developed by 미생s 팀 (장효석, 김성호, 김재형) | 
         Data: KITA, KOTRA, K-SURE</p>
         <p>📧 Contact: misaengs.team@gmail.com | 
