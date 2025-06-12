@@ -1121,7 +1121,7 @@ def main():
             if sim_risk <= 2:
                 st.success("🛡️ 안전한 시장입니다. 장기적 투자와 브랜딩 전략을 고려하세요.")
     
-    with tab_index:
+    with tab7:
         render_model_index()
     # 푸터
     st.markdown("---")
