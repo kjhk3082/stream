@@ -866,6 +866,80 @@ def main():
         fig_bar.update_layout(height=400, xaxis_tickangle=-45)
         st.plotly_chart(fig_bar, use_container_width=True)
         
+        # 레이더 차트 추가 (상위 5개국)
+        radar_count = min(5, actual_countries)
+        st.subheader(f"🕸️ 상위 {radar_count}개국 다차원 분석 (총 {actual_countries}개국 중)")
+        top_radar_countries = analyzed_df.head(radar_count)
+        
+        categories = ['수출액', '성장률', '안전도', '결제안전도']
+        
+        fig_radar = go.Figure()
+        
+        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+        
+        for idx, (_, country) in enumerate(top_radar_countries.iterrows()):
+            values = [
+                country['Export_Score'],
+                country['Growth_Score'],
+                country['Safety_Score'], 
+                country['Payment_Score']
+            ]
+            
+            fig_radar.add_trace(go.Scatterpolar(
+                r=values + [values[0]],
+                theta=categories + [categories[0]],
+                fill='toself',
+                name=f"{country['Country']} ({country['Suitability_Score']:.1f}점)",
+                opacity=0.6,
+                line_color=colors[idx % len(colors)],
+                fillcolor=f"rgba{tuple(list(int(colors[idx % len(colors)][1:][i:i+2], 16) for i in (0, 2, 4)) + [0.3])}"
+            ))
+        
+        fig_radar.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 100],
+                    tickmode='linear',
+                    tick0=0,
+                    dtick=20
+                )
+            ),
+            showlegend=True,
+            title=f"상위 {radar_count}개국 종합 역량 비교 (0-100점 척도)",
+            height=500,
+            legend=dict(
+                orientation="v",
+                yanchor="middle",
+                y=0.5,
+                xanchor="left",
+                x=1.05
+            )
+        )
+        
+        st.plotly_chart(fig_radar, use_container_width=True)
+        
+        # 레이더 차트 해석 가이드
+        with st.expander("📖 레이더 차트 해석 가이드"):
+            st.markdown("""
+            **🔍 차트 읽는 방법**:
+            - **바깥쪽일수록 높은 점수**: 각 축에서 바깥쪽에 위치할수록 해당 지표의 점수가 높음
+            - **면적이 클수록 종합 우수**: 전체적으로 면적이 클수록 균형잡힌 우수한 성과
+            - **모양으로 특성 파악**: 특정 방향으로 치우친 모양은 해당 분야의 특화된 강점을 의미
+            
+            **📊 각 축 의미**:
+            - **수출액**: 시장 규모와 기존 수출 실적
+            - **성장률**: 시장 확장성과 미래 잠재력  
+            - **안전도**: 정치적 안정성과 사업 환경
+            - **결제안전도**: 대금 회수 가능성과 거래 안전성
+            
+            **💡 전략적 시사점**:
+            - **균형형**: 모든 영역에서 고르게 우수 → 안정적 진출 가능
+            - **수출 특화형**: 수출액 축이 길게 뻗음 → 대량 거래 유리
+            - **성장 특화형**: 성장률 축이 두드러짐 → 선점 효과 기대
+            - **안전 특화형**: 안전 관련 축이 강함 → 장기 투자 적합
+            """)
+        
         # 수출액 vs 성장률 산점도 (BCG 매트릭스) - 안전한 버전
         st.subheader("📈 BCG 매트릭스 (수출액 vs 성장률)")
         
@@ -877,7 +951,7 @@ def main():
             color='Risk_Index',
             hover_name='Country',
             color_continuous_scale='RdYlGn_r',
-            title="BCG 매트릭스 분석",
+            title=f"BCG 매트릭스 분석 (총 {actual_countries}개국)",
             labels={
                 'Export_Value': '수출액 (억달러)',
                 'Growth_Rate': '성장률 (%)',
@@ -895,12 +969,83 @@ def main():
                                  annotation_text="성장률 중위값")
             fig_scatter.add_vline(x=median_export, line_dash="dash", line_color="gray",
                                  annotation_text="수출액 중위값")
+            
+            # BCG 매트릭스 사분면 라벨 추가
+            max_export = analyzed_df['Export_Value'].max()
+            max_growth = analyzed_df['Growth_Rate'].max()
+            
+            # 각 사분면에 라벨 추가
+            fig_scatter.add_annotation(
+                x=median_export + (max_export - median_export) * 0.7,
+                y=median_growth + (max_growth - median_growth) * 0.7,
+                text="🌟 Stars<br>(고성장-고수출)",
+                showarrow=False,
+                bgcolor="rgba(144, 238, 144, 0.7)",
+                bordercolor="green",
+                borderwidth=1
+            )
+            
+            fig_scatter.add_annotation(
+                x=median_export * 0.3,
+                y=median_growth + (max_growth - median_growth) * 0.7,
+                text="❓ Question Marks<br>(고성장-저수출)",
+                showarrow=False,
+                bgcolor="rgba(255, 255, 0, 0.7)",
+                bordercolor="orange",
+                borderwidth=1
+            )
+            
+            fig_scatter.add_annotation(
+                x=median_export + (max_export - median_export) * 0.7,
+                y=median_growth * 0.3,
+                text="💰 Cash Cows<br>(저성장-고수출)",
+                showarrow=False,
+                bgcolor="rgba(173, 216, 230, 0.7)",
+                bordercolor="blue",
+                borderwidth=1
+            )
+            
+            fig_scatter.add_annotation(
+                x=median_export * 0.3,
+                y=median_growth * 0.3,
+                text="🐕 Dogs<br>(저성장-저수출)",
+                showarrow=False,
+                bgcolor="rgba(255, 182, 193, 0.7)",
+                bordercolor="red",
+                borderwidth=1
+            )
         
         fig_scatter.update_layout(height=600)
         st.plotly_chart(fig_scatter, use_container_width=True)
         
+        # BCG 매트릭스 해석
+        with st.expander("📊 BCG 매트릭스 해석 가이드"):
+            st.markdown("""
+            **🎯 BCG 매트릭스 사분면 전략**:
+            
+            **🌟 Stars (고성장-고수출)**:
+            - 최우선 투자 대상
+            - 적극적 마케팅과 시장 점유율 확대
+            - 장기적 성장 동력으로 육성
+            
+            **❓ Question Marks (고성장-저수출)**:
+            - 선택적 집중 투자 필요
+            - 시장 진입 초기 단계로 판단
+            - 성공 시 Star로 전환 가능
+            
+            **💰 Cash Cows (저성장-고수출)**:
+            - 안정적 수익 창출원
+            - 현상 유지 전략 적용
+            - 다른 시장 투자 재원으로 활용
+            
+            **🐕 Dogs (저성장-저수출)**:
+            - 투자 축소 또는 철수 검토
+            - 최소한의 관리만 유지
+            - 자원을 다른 유망 시장으로 재배치
+            """)
+        
         # 대륙별 수출 현황
-        st.subheader("🌍 대륙별 수출 현황")
+        st.subheader(f"🌍 대륙별 수출 현황 (총 {actual_countries}개국)")
         
         continent_summary = analyzed_df.groupby('Continent').agg({
             'Export_Value': 'sum',
@@ -917,12 +1062,58 @@ def main():
                 fig_pie = px.pie(
                     values=continent_summary['총수출액'],
                     names=continent_summary.index,
-                    title="대륙별 수출액 비중"
+                    title=f"대륙별 수출액 비중 (총 {actual_countries}개국)"
                 )
+                fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                 st.plotly_chart(fig_pie, use_container_width=True)
         
         with col2:
             st.dataframe(continent_summary, use_container_width=True)
+            
+            # 대륙별 주요 특징 요약
+            st.markdown("**🔍 대륙별 특징**:")
+            for continent in continent_summary.index:
+                continent_data = analyzed_df[analyzed_df['Continent'] == continent]
+                top_country = continent_data.loc[continent_data['Suitability_Score'].idxmax(), 'Country']
+                country_count = len(continent_data)
+                avg_score = continent_data['Suitability_Score'].mean()
+                
+                if avg_score >= 60:
+                    status = "🌟 매우 유망"
+                elif avg_score >= 40:
+                    status = "✅ 유망"
+                else:
+                    status = "⚠️ 신중검토"
+                
+                st.write(f"• **{continent}**: {country_count}개국, 최고국가: {top_country} {status}")
+        
+        # 종합 분석 요약
+        st.subheader("📋 종합 분석 요약")
+        
+        # 상위 3개국과 하위 3개국
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**🥇 Top 3 추천 진출국**:")
+            top_3 = analyzed_df.head(3)
+            for i, (_, row) in enumerate(top_3.iterrows(), 1):
+                risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
+                st.write(f"{i}. **{row['Country']}** {risk_emoji}")
+                st.write(f"   📊 적합도: {row['Suitability_Score']:.1f}점")
+                st.write(f"   💰 수출액: ${row['Export_Value']:.1f}B")
+                st.write(f"   📈 성장률: {row['Growth_Rate']:.1f}%")
+                st.write("---")
+        
+        with col2:
+            st.markdown("**⚠️ 신중검토 필요국 (하위 3개국)**:")
+            bottom_3 = analyzed_df.tail(3)
+            for i, (_, row) in enumerate(bottom_3.iterrows(), 1):
+                risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
+                st.write(f"{i}. **{row['Country']}** {risk_emoji}")
+                st.write(f"   📊 적합도: {row['Suitability_Score']:.1f}점")
+                st.write(f"   ⚠️ 위험지수: {row['Risk_Index']}")
+                st.write(f"   💳 연체율: {row['PDR_Rate']:.1f}%")
+                st.write("---")
     
     with tab2:
         st.header("🎯 전략별 분석 결과")
