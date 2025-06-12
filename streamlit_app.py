@@ -380,7 +380,7 @@ def render_model_index():
         
         # 한글 폰트 설정 (가능한 경우)
         try:
-            plt.rcParams['font.family'] = 'DejaVu Sans'
+            plt.rcParams['font.family'] = 'fonts-nanum'
         except:
             pass
         
