@@ -1120,6 +1120,7 @@ def main():
                 st.success("🚀 고성장 시장입니다. 빠른 진출로 시장 선점 기회를 잡으세요.")
             if sim_risk <= 2:
                 st.success("🛡️ 안전한 시장입니다. 장기적 투자와 브랜딩 전략을 고려하세요.")
+    
     with tab_index:
         render_model_index()
     # 푸터
