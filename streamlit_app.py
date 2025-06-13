@@ -1259,153 +1259,151 @@ def main():
                         risk_emoji = "🟢" if cluster_data.iloc[i]['Risk_Index'] <= 2 else "🟡" if cluster_data.iloc[i]['Risk_Index'] <= 3 else "🔴"
                         st.write(f"• {country} {risk_emoji}")
     
-# Tab 4 (성장성 분석) 완전 수정 버전
-with tab4:
-    st.header("📈 성장성 분석")
-    
-    # 데이터 유효성 검사 먼저 수행
-    if len(analyzed_df) == 0:
-        st.error("분석할 데이터가 없습니다.")
-        st.stop()
-    
-    # 필수 컬럼 확인
-    required_cols = ['Growth_Rate', 'Export_Value', 'Country', 'Continent', 'Suitability_Score']
-    missing_cols = [col for col in required_cols if col not in analyzed_df.columns]
-    
-    if missing_cols:
-        st.error(f"필수 컬럼이 누락되었습니다: {missing_cols}")
-        st.stop()
-    
-    # 성장률 히스토그램
-    st.subheader("📊 성장률 분포")
-    
-    fig_hist = px.histogram(
-        analyzed_df,
-        x='Growth_Rate',
-        nbins=15,
-        title="HS CODE 3304 국가별 성장률 분포",
-        labels={'Growth_Rate': '성장률 (%)', 'count': '국가 수'},
-        color_discrete_sequence=['#FF6B6B']
-    )
-    
-    # 평균선 추가
-    avg_growth = analyzed_df['Growth_Rate'].mean()
-    fig_hist.add_vline(x=avg_growth, line_dash="dash", line_color="red", 
-                      annotation_text=f"평균: {avg_growth:.1f}%")
-    
-    st.plotly_chart(fig_hist, use_container_width=True)
-    
-    # 대륙별 성장률 박스플롯
-    st.subheader("🌍 대륙별 성장률 비교")
-    
-    if len(analyzed_df['Continent'].unique()) > 1:
-        fig_box = px.box(
+    with tab4:
+        st.header("📈 성장성 분석")
+        
+        # 데이터 유효성 검사 먼저 수행
+        if len(analyzed_df) == 0:
+            st.error("분석할 데이터가 없습니다.")
+            st.stop()
+        
+        # 필수 컬럼 확인
+        required_cols = ['Growth_Rate', 'Export_Value', 'Country', 'Continent', 'Suitability_Score']
+        missing_cols = [col for col in required_cols if col not in analyzed_df.columns]
+        
+        if missing_cols:
+            st.error(f"필수 컬럼이 누락되었습니다: {missing_cols}")
+            st.stop()
+        
+        # 성장률 히스토그램
+        st.subheader("📊 성장률 분포")
+        
+        fig_hist = px.histogram(
             analyzed_df,
-            x='Continent',
-            y='Growth_Rate',
-            title="대륙별 성장률 분포 (HS CODE 3304)",
-            color='Continent',
-            labels={'Growth_Rate': '성장률 (%)', 'Continent': '대륙'}
+            x='Growth_Rate',
+            nbins=15,
+            title="HS CODE 3304 국가별 성장률 분포",
+            labels={'Growth_Rate': '성장률 (%)', 'count': '국가 수'},
+            color_discrete_sequence=['#FF6B6B']
         )
-        st.plotly_chart(fig_box, use_container_width=True)
-    else:
-        st.info("대륙 필터로 인해 단일 대륙만 선택되어 박스플롯을 생성할 수 없습니다.")
-    
-    # 성장률 vs 수출액 관계 (수정된 버전)
-    st.subheader("💹 성장률과 수출액의 관계")
-    
-    # 데이터 정리
-    growth_analysis_df = analyzed_df.copy()
-    
-    # NaN 값 제거
-    growth_analysis_df = growth_analysis_df.dropna(subset=['Export_Value', 'Growth_Rate'])
-    
-    if len(growth_analysis_df) > 0:
-        # 무한값 처리
-        growth_analysis_df = growth_analysis_df.replace([np.inf, -np.inf], np.nan)
+        
+        # 평균선 추가
+        avg_growth = analyzed_df['Growth_Rate'].mean()
+        fig_hist.add_vline(x=avg_growth, line_dash="dash", line_color="red", 
+                          annotation_text=f"평균: {avg_growth:.1f}%")
+        
+        st.plotly_chart(fig_hist, use_container_width=True)
+        
+        # 대륙별 성장률 박스플롯
+        st.subheader("🌍 대륙별 성장률 비교")
+        
+        if len(analyzed_df['Continent'].unique()) > 1:
+            fig_box = px.box(
+                analyzed_df,
+                x='Continent',
+                y='Growth_Rate',
+                title="대륙별 성장률 분포 (HS CODE 3304)",
+                color='Continent',
+                labels={'Growth_Rate': '성장률 (%)', 'Continent': '대륙'}
+            )
+            st.plotly_chart(fig_box, use_container_width=True)
+        else:
+            st.info("대륙 필터로 인해 단일 대륙만 선택되어 박스플롯을 생성할 수 없습니다.")
+        
+        # 성장률 vs 수출액 관계 (수정된 버전)
+        st.subheader("📉 성장률과 수출액의 관계")
+        
+        # 데이터 정리
+        growth_analysis_df = analyzed_df.copy()
+        
+        # NaN 값 제거
         growth_analysis_df = growth_analysis_df.dropna(subset=['Export_Value', 'Growth_Rate'])
         
         if len(growth_analysis_df) > 0:
-            try:
-                fig_growth_export = px.scatter(
-                    growth_analysis_df,
-                    x='Export_Value',
-                    y='Growth_Rate',
-                    size='Suitability_Score',
-                    color='Continent',
-                    hover_name='Country',
-                    title=f"성장률 vs 수출액 (HS CODE 3304, 총 {len(growth_analysis_df)}개국)",
-                    labels={
-                        'Export_Value': '수출액 (백만달러)',
-                        'Growth_Rate': '성장률 (%)',
-                        'Suitability_Score': '적합도 점수',
-                        'Continent': '대륙'
-                    },
-                    size_max=30
-                )
-                
-                st.plotly_chart(fig_growth_export, use_container_width=True)
-                
-                # 상관관계 분석
+            # 무한값 처리
+            growth_analysis_df = growth_analysis_df.replace([np.inf, -np.inf], np.nan).dropna(subset=['Export_Value', 'Growth_Rate'])
+            
+            if len(growth_analysis_df) > 0:
                 try:
-                    correlation = growth_analysis_df['Export_Value'].corr(growth_analysis_df['Growth_Rate'])
+                    fig_growth_export = px.scatter(
+                        growth_analysis_df,
+                        x='Export_Value',
+                        y='Growth_Rate',
+                        size='Suitability_Score',
+                        color='Continent',
+                        hover_name='Country',
+                        title=f"성장률 vs 수출액 (HS CODE 3304, 총 {len(growth_analysis_df)}개국)",
+                        labels={
+                            'Export_Value': '수출액 (백만달러)',
+                            'Growth_Rate': '성장률 (%)',
+                            'Suitability_Score': '적합도 점수',
+                            'Continent': '대륙'
+                        },
+                        size_max=30
+                    )
                     
-                    if abs(correlation) > 0.5:
-                        corr_strength = "강한"
-                        corr_color = "success" if correlation > 0 else "error"
-                    elif abs(correlation) > 0.3:
-                        corr_strength = "중간"
-                        corr_color = "info"
-                    else:
-                        corr_strength = "약한"
-                        corr_color = "warning"
+                    st.plotly_chart(fig_growth_export, use_container_width=True)
                     
-                    corr_direction = "양의" if correlation > 0 else "음의"
-                    
-                    if corr_color == "success":
-                        st.success(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
-                    elif corr_color == "info":
-                        st.info(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
-                    elif corr_color == "warning":
-                        st.warning(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
-                    else:
-                        st.error(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                    # 상관관계 분석
+                    try:
+                        correlation = growth_analysis_df['Export_Value'].corr(growth_analysis_df['Growth_Rate'])
                         
+                        if abs(correlation) > 0.5:
+                            corr_strength = "강한"
+                            corr_color = "success" if correlation > 0 else "error"
+                        elif abs(correlation) > 0.3:
+                            corr_strength = "중간"
+                            corr_color = "info"
+                        else:
+                            corr_strength = "약한"
+                            corr_color = "warning"
+                        
+                        corr_direction = "양의" if correlation > 0 else "음의"
+                        
+                        if corr_color == "success":
+                            st.success(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                        elif corr_color == "info":
+                            st.info(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                        elif corr_color == "warning":
+                            st.warning(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                        else:
+                            st.error(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                            
+                    except Exception as e:
+                        st.error(f"상관관계 분석 중 오류 발생: {str(e)}")
+                    
                 except Exception as e:
-                    st.error(f"상관관계 분석 중 오류 발생: {str(e)}")
-                
-            except Exception as e:
-                st.error(f"차트 생성 중 오류 발생: {str(e)}")
-                
-                # 대체 테이블 표시
-                st.subheader("📋 성장률-수출액 관계 데이터")
-                display_data = growth_analysis_df[['Country', 'Export_Value', 'Growth_Rate', 'Continent']].head(10)
-                st.dataframe(display_data, use_container_width=True)
+                    st.error(f"차트 생성 중 오류 발생: {str(e)}")
+                    
+                    # 대체 테이블 표시
+                    st.subheader("📋 성장률-수출액 관계 데이터")
+                    display_data = growth_analysis_df[['Country', 'Export_Value', 'Growth_Rate', 'Continent']].head(10)
+                    st.dataframe(display_data, use_container_width=True)
+            else:
+                st.warning("무한값 제거 후 표시할 데이터가 없습니다.")
         else:
-            st.warning("무한값 제거 후 표시할 데이터가 없습니다.")
-    else:
-        st.warning("성장률과 수출액 데이터가 없습니다.")
-    
-    # 성장률 상위/하위 국가
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🚀 고성장 시장 TOP 10")
-        high_growth = analyzed_df.nlargest(10, 'Growth_Rate')
+            st.warning("성장률과 수출액 데이터가 없습니다.")
         
-        for i, (_, row) in enumerate(high_growth.iterrows(), 1):
-            risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
-            st.write(f"{i}. **{row['Country']}** {risk_emoji}: {row['Growth_Rate']:.1f}%")
-            st.write(f"   💰 수출액: ${row['Export_Value']:.1f}B | 적합도: {row['Suitability_Score']:.1f}점")
-    
-    with col2:
-        st.subheader("📉 저성장 시장 TOP 10")
-        low_growth = analyzed_df.nsmallest(10, 'Growth_Rate')
+        # 성장률 상위/하위 국가
+        col1, col2 = st.columns(2)
         
-        for i, (_, row) in enumerate(low_growth.iterrows(), 1):
-            risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
-            st.write(f"{i}. **{row['Country']}** {risk_emoji}: {row['Growth_Rate']:.1f}%")
-            st.write(f"   💰 수출액: ${row['Export_Value']:.1f}B | 적합도: {row['Suitability_Score']:.1f}점")
+        with col1:
+            st.subheader("🚀 고성장 시장 TOP 10")
+            high_growth = analyzed_df.nlargest(10, 'Growth_Rate')
+            
+            for i, (_, row) in enumerate(high_growth.iterrows(), 1):
+                risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
+                st.write(f"{i}. **{row['Country']}** {risk_emoji}: {row['Growth_Rate']:.1f}%")
+                st.write(f"   💰 수출액: ${row['Export_Value']:.1f}B | 적합도: {row['Suitability_Score']:.1f}점")
+        
+        with col2:
+            st.subheader("📉 저성장 시장 TOP 10")
+            low_growth = analyzed_df.nsmallest(10, 'Growth_Rate')
+            
+            for i, (_, row) in enumerate(low_growth.iterrows(), 1):
+                risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
+                st.write(f"{i}. **{row['Country']}** {risk_emoji}: {row['Growth_Rate']:.1f}%")
+                st.write(f"   💰 수출액: ${row['Export_Value']:.1f}B | 적합도: {row['Suitability_Score']:.1f}점")
 
 # Tab 7과 Tab 8을 위한 완전한 함수들 추가
 def render_backtesting_results():
