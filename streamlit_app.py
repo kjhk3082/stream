@@ -1631,13 +1631,12 @@ def render_model_index():
         따라서 HS CODE 3304 화장품 수출 기업들은 **기존 주력 시장을 기반으로 한 
         안정적 확장 전략**을 우선 고려하는 것이 최적의 선택입니다.
         """)
+        # Tab 7과 Tab 8 구현
+    with tab7:
+        render_backtesting_results()
 
-# Tab 7과 Tab 8 구현
-with tab7:
-    render_backtesting_results()
-
-with tab8:
-    render_model_index()
+    with tab8:
+        render_model_index()
 
     
     with tab5:
