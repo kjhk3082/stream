@@ -20,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS 스타일링
+# CSS 스타일링 (다크 테마 대응 포함)
 st.markdown("""
 <style>
     .main-header {
@@ -30,6 +30,7 @@ st.markdown("""
         margin-bottom: 2rem;
         font-weight: bold;
     }
+    
     .hs-code-badge {
         background-color: #e8f4fd;
         border: 2px solid #2196f3;
@@ -41,6 +42,14 @@ st.markdown("""
         font-weight: bold;
         font-size: 16px;
     }
+    
+    /* 다크 테마 대응 */
+    [data-theme="dark"] .hs-code-badge {
+        background-color: #1e3a5f;
+        border: 2px solid #4fc3f7;
+        color: #81d4fa;
+    }
+    
     .backtesting-result {
         background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -48,12 +57,20 @@ st.markdown("""
         border-radius: 10px;
         margin: 20px 0;
     }
+    
     .metric-container {
         background-color: #f0f2f6;
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 0.5rem 0;
     }
+    
+    /* 다크 테마에서 metric 컨테이너 */
+    [data-theme="dark"] .metric-container {
+        background-color: #2d3748;
+        color: #e2e8f0;
+    }
+    
     .risk-high { color: #ff4444; }
     .risk-medium { color: #ffaa00; }
     .risk-low { color: #44ff44; }
@@ -77,6 +94,13 @@ st.markdown("""
         border: 2px solid #FF8C00;
     }
     
+    /* 다크 테마에서 winner-strategy */
+    [data-theme="dark"] .winner-strategy {
+        background: linear-gradient(90deg, #B8860B 0%, #CD853F 100%);
+        color: #2d3748;
+        border: 2px solid #DAA520;
+    }
+    
     .math-formula {
         background-color: #f8f9fa;
         border: 2px solid #dee2e6;
@@ -87,6 +111,14 @@ st.markdown("""
         font-family: 'Times New Roman', serif;
         font-size: 18px;
         line-height: 1.8;
+        color: #2d3748;
+    }
+    
+    /* 다크 테마에서 math-formula */
+    [data-theme="dark"] .math-formula {
+        background-color: #2d3748;
+        border: 2px solid #4a5568;
+        color: #e2e8f0;
     }
     
     .formula-title {
@@ -99,6 +131,12 @@ st.markdown("""
         display: inline-block;
     }
     
+    /* 다크 테마에서 formula-title */
+    [data-theme="dark"] .formula-title {
+        background-color: #4a5568;
+        color: #e2e8f0;
+    }
+    
     .country-list {
         text-align: left;
         margin-bottom: 10px;
@@ -106,12 +144,79 @@ st.markdown("""
     
     .country-item {
         margin-bottom: 8px;
-        padding: 8px;
+        padding: 12px;
         border-left: 4px solid #4CAF50;
         background-color: #f8f9fa;
         border-radius: 4px;
+        color: #2d3748 !important;
+        font-weight: 600;
+        border: 1px solid #cbd5e0;
+    }
+    
+    /* 다크 테마에서 country-item - 핵심 수정 부분 */
+    [data-theme="dark"] .country-item {
+        background-color: #2d3748 !important;
+        color: #e2e8f0 !important;
+        border-left: 4px solid #68d391 !important;
+        border: 1px solid #4a5568 !important;
+    }
+    
+    /* Streamlit 다크 테마 자동 감지 */
+    .stApp[data-theme="dark"] .country-item {
+        background-color: #2d3748 !important;
+        color: #e2e8f0 !important;
+        border-left: 4px solid #68d391 !important;
+    }
+    
+    /* 추가적인 다크 테마 대응 */
+    [data-theme="dark"] .main-header {
+        color: #f687b3;
+    }
+    
+    /* 텍스트 가독성 향상 */
+    .country-item strong {
+        font-weight: bold;
+        font-size: 1.1em;
+    }
+    
+    [data-theme="dark"] .country-item strong {
+        color: #81d4fa !important;
+    }
+    
+    /* 메트릭 값들도 다크 테마 대응 */
+    [data-theme="dark"] .metric-value {
+        color: #e2e8f0 !important;
+    }
+    
+    /* 전반적인 컨테이너 스타일 */
+    .analysis-container {
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+    }
+    
+    [data-theme="dark"] .analysis-container {
+        background-color: #1a202c !important;
+        border: 1px solid #2d3748 !important;
+        color: #e2e8f0 !important;
     }
 </style>
+""", unsafe_allow_html=True)
+
+# 자동 테마 감지 스크립트
+st.markdown("""
+<script>
+// 자동으로 테마 감지하여 data-theme 속성 설정
+function detectTheme() {
+    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+}
+
+detectTheme();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', detectTheme);
+</script>
 """, unsafe_allow_html=True)
 
 # 데이터 로딩 함수
@@ -747,10 +852,10 @@ def render_model_index():
         }
         
         strategy_results = {}
-        for strategy_name, weights in strategies.items():
-            china_s = 100*weights[0] + 15*weights[1] + 25*weights[2] + 70*weights[3]
-            usa_s = 63.9*weights[0] + 85*weights[1] + 75*weights[2] + 85*weights[3]
-            japan_s = 21.9*weights[0] + 70*weights[1] + 100*weights[2] + 95*weights[3]
+        for strategy_name, weights_sim in strategies.items():
+            china_s = 100*weights_sim[0] + 15*weights_sim[1] + 25*weights_sim[2] + 70*weights_sim[3]
+            usa_s = 63.9*weights_sim[0] + 85*weights_sim[1] + 75*weights_sim[2] + 85*weights_sim[3]
+            japan_s = 21.9*weights_sim[0] + 70*weights_sim[1] + 100*weights_sim[2] + 95*weights_sim[3]
             
             scores = {'중국': china_s, '미국': usa_s, '일본': japan_s}
             sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -1113,7 +1218,7 @@ def main():
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
                 
                 st.markdown(f"""
-                <div class="country-item">
+                <div class="country-item analysis-container">
                     <strong>{medal} {row['Country']} {risk_emoji}</strong><br>
                     📊 적합도: {row['Suitability_Score']:.1f}점<br>
                     💰 HS3304 수출액: ${row['Export_Value']:.1f}B<br>
@@ -1129,7 +1234,7 @@ def main():
                 risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
                 
                 st.markdown(f"""
-                <div class="country-item">
+                <div class="country-item analysis-container">
                     <strong>{i}. {row['Country']} {risk_emoji}</strong><br>
                     📊 적합도: {row['Suitability_Score']:.1f}점<br>
                     ⚠️ 위험지수: {row['Risk_Index']}<br>
@@ -1326,7 +1431,7 @@ def main():
     with tab4:
         st.header("📈 성장성 분석")
         
-        # 데이터 유효성 검사 먼저 수행
+        # 데이터 유효성 검사
         if len(analyzed_df) == 0:
             st.error("분석할 데이터가 없습니다.")
             st.stop()
@@ -1374,17 +1479,14 @@ def main():
         else:
             st.info("대륙 필터로 인해 단일 대륙만 선택되어 박스플롯을 생성할 수 없습니다.")
         
-        # 성장률 vs 수출액 관계 (수정된 버전)
+        # 성장률 vs 수출액 관계
         st.subheader("💹 성장률과 수출액의 관계")
         
         # 데이터 정리
         growth_analysis_df = analyzed_df.copy()
-        
-        # NaN 값 제거
         growth_analysis_df = growth_analysis_df.dropna(subset=['Export_Value', 'Growth_Rate'])
         
         if len(growth_analysis_df) > 0:
-            # 무한값 처리
             growth_analysis_df = growth_analysis_df.replace([np.inf, -np.inf], np.nan)
             growth_analysis_df = growth_analysis_df.dropna(subset=['Export_Value', 'Growth_Rate'])
             
@@ -1410,33 +1512,29 @@ def main():
                     st.plotly_chart(fig_growth_export, use_container_width=True)
                     
                     # 상관관계 분석
-                    try:
-                        correlation = growth_analysis_df['Export_Value'].corr(growth_analysis_df['Growth_Rate'])
-                        
-                        if abs(correlation) > 0.5:
-                            corr_strength = "강한"
-                            corr_color = "success" if correlation > 0 else "error"
-                        elif abs(correlation) > 0.3:
-                            corr_strength = "중간"
-                            corr_color = "info"
-                        else:
-                            corr_strength = "약한"
-                            corr_color = "warning"
-                        
-                        corr_direction = "양의" if correlation > 0 else "음의"
-                        
-                        if corr_color == "success":
-                            st.success(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
-                        elif corr_color == "info":
-                            st.info(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
-                        elif corr_color == "warning":
-                            st.warning(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
-                        else:
-                            st.error(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
-                            
-                    except Exception as e:
-                        st.error(f"상관관계 분석 중 오류 발생: {str(e)}")
+                    correlation = growth_analysis_df['Export_Value'].corr(growth_analysis_df['Growth_Rate'])
                     
+                    if abs(correlation) > 0.5:
+                        corr_strength = "강한"
+                        corr_color = "success" if correlation > 0 else "error"
+                    elif abs(correlation) > 0.3:
+                        corr_strength = "중간"
+                        corr_color = "info"
+                    else:
+                        corr_strength = "약한"
+                        corr_color = "warning"
+                    
+                    corr_direction = "양의" if correlation > 0 else "음의"
+                    
+                    if corr_color == "success":
+                        st.success(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                    elif corr_color == "info":
+                        st.info(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                    elif corr_color == "warning":
+                        st.warning(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                    else:
+                        st.error(f"📊 **상관관계 분석**: {corr_strength} {corr_direction} 상관관계 (r = {correlation:.3f})")
+                        
                 except Exception as e:
                     st.error(f"차트 생성 중 오류 발생: {str(e)}")
                     
@@ -1473,7 +1571,6 @@ def main():
         # 성장률 구간별 분석
         st.subheader("📊 성장률 구간별 분석")
         
-        # 성장률 구간 분류
         def classify_growth(growth_rate):
             if growth_rate >= 100:
                 return "🚀 초고성장 (100%+)"
@@ -1502,7 +1599,6 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            # 구간별 국가 수
             if len(growth_summary) > 0:
                 fig_growth_dist = px.bar(
                     x=growth_summary.index,
@@ -1518,53 +1614,6 @@ def main():
         with col2:
             if len(growth_summary) > 0:
                 st.dataframe(growth_summary, use_container_width=True)
-        
-        # 성장률 인사이트
-        st.subheader("🔍 성장률 분석 인사이트")
-        
-        # 최고/최저 성장률 국가
-        max_growth_country = analyzed_df.loc[analyzed_df['Growth_Rate'].idxmax()]
-        min_growth_country = analyzed_df.loc[analyzed_df['Growth_Rate'].idxmin()]
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.success(f"""
-            **🏆 최고 성장률 국가**: {max_growth_country['Country']}
-            - 성장률: {max_growth_country['Growth_Rate']:.1f}%
-            - 수출액: ${max_growth_country['Export_Value']:.1f}B
-            - 적합도: {max_growth_country['Suitability_Score']:.1f}점
-            - 위험도: {max_growth_country['Risk_Index']}단계
-            """)
-        
-        with col2:
-            color = "error" if min_growth_country['Growth_Rate'] < 0 else "warning"
-            if color == "error":
-                st.error(f"""
-                **📉 최저 성장률 국가**: {min_growth_country['Country']}
-                - 성장률: {min_growth_country['Growth_Rate']:.1f}%
-                - 수출액: ${min_growth_country['Export_Value']:.1f}B
-                - 적합도: {min_growth_country['Suitability_Score']:.1f}점
-                - 위험도: {min_growth_country['Risk_Index']}단계
-                """)
-            else:
-                st.warning(f"""
-                **📉 최저 성장률 국가**: {min_growth_country['Country']}
-                - 성장률: {min_growth_country['Growth_Rate']:.1f}%
-                - 수출액: ${min_growth_country['Export_Value']:.1f}B
-                - 적합도: {min_growth_country['Suitability_Score']:.1f}점
-                - 위험도: {min_growth_country['Risk_Index']}단계
-                """)
-        
-        # 성장률 기반 투자 전략 제안
-        st.info("""
-        **💡 HS CODE 3304 성장률 기반 투자 전략 제안**:
-        - **초고성장 시장 (100%+)**: 선점 효과를 위한 조기 진입, 높은 ROI 기대
-        - **고성장 시장 (50-100%)**: 중장기 투자 계획 수립, 브랜드 포지셔닝 강화
-        - **중성장 시장 (20-50%)**: 안정적 성장 기대, 점진적 시장 확대
-        - **저성장 시장 (0-20%)**: 기존 시장 유지, 효율성 중심 운영
-        - **마이너스 성장**: 신중한 검토 후 투자 축소 또는 대기 전략
-        """)
 
     with tab5:
         st.header("⚠️ 리스크 분석")
@@ -1614,7 +1663,6 @@ def main():
         # 결제 위험 분석
         st.subheader("💳 결제 위험도 분석")
         
-        # 연체율 상위 15개국
         payment_risk_df = analyzed_df.nlargest(15, 'PDR_Rate')
         
         if len(payment_risk_df) > 0:
