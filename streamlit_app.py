@@ -1266,7 +1266,7 @@ with tab4:
     # 데이터 유효성 검사 먼저 수행
     if len(analyzed_df) == 0:
         st.error("분석할 데이터가 없습니다.")
-        return
+        st.stop()
     
     # 필수 컬럼 확인
     required_cols = ['Growth_Rate', 'Export_Value', 'Country', 'Continent', 'Suitability_Score']
@@ -1274,7 +1274,7 @@ with tab4:
     
     if missing_cols:
         st.error(f"필수 컬럼이 누락되었습니다: {missing_cols}")
-        return
+        st.stop()
     
     # 성장률 히스토그램
     st.subheader("📊 성장률 분포")
