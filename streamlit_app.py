@@ -431,6 +431,70 @@ def render_backtesting_results():
     metrics_df = pd.DataFrame(metrics_data)
     st.dataframe(metrics_df, use_container_width=True, hide_index=True)
     
+    # 백테스팅 결과 시각화
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # 상관계수 비교 차트
+        strategies = list(real_results.keys())
+        correlations = [real_results[s]['correlation'] for s in strategies]
+        
+        fig_corr = px.bar(
+            x=strategies,
+            y=correlations,
+            title="피어슨 상관계수 비교 (실제 백테스팅)",
+            labels={'x': '전략', 'y': '상관계수'},
+            color=correlations,
+            color_continuous_scale='RdYlGn'
+        )
+        
+        # 유의성 표시
+        for i, (strategy, corr) in enumerate(zip(strategies, correlations)):
+            significance = "✅" if real_results[strategy]['significant'] else "❌"
+            fig_corr.add_annotation(
+                x=i, y=corr + 0.05,
+                text=f"{corr:.3f} {significance}",
+                showarrow=False,
+                font=dict(size=12, color="black")
+            )
+        
+        fig_corr.update_layout(height=400)
+        st.plotly_chart(fig_corr, use_container_width=True)
+    
+    with col2:
+        # Hit Rate 및 AUC 비교
+        hit_rates = [real_results[s]['hit_rate'] for s in strategies]
+        aucs = [real_results[s]['auc'] for s in strategies]
+        
+        fig_metrics = go.Figure()
+        fig_metrics.add_trace(go.Bar(
+            name='Hit Rate (%)',
+            x=strategies,
+            y=hit_rates,
+            yaxis='y',
+            marker_color='lightblue'
+        ))
+        
+        fig_metrics.add_trace(go.Scatter(
+            name='AUC',
+            x=strategies,
+            y=[auc * 100 for auc in aucs],  # 0-1을 0-100으로 변환
+            yaxis='y2',
+            mode='lines+markers',
+            line=dict(color='red', width=3),
+            marker=dict(size=10)
+        ))
+        
+        fig_metrics.update_layout(
+            title='Hit Rate vs AUC 비교',
+            xaxis=dict(title='전략'),
+            yaxis=dict(title='Hit Rate (%)', side='left'),
+            yaxis2=dict(title='AUC (×100)', side='right', overlaying='y'),
+            height=400
+        )
+        
+        st.plotly_chart(fig_metrics, use_container_width=True)
+    
     # 핵심 인사이트
     st.subheader("💡 실제 백테스팅 핵심 인사이트")
     
@@ -1311,7 +1375,7 @@ def main():
             st.info("대륙 필터로 인해 단일 대륙만 선택되어 박스플롯을 생성할 수 없습니다.")
         
         # 성장률 vs 수출액 관계 (수정된 버전)
-        st.subheader("📉 성장률과 수출액의 관계")
+        st.subheader("💹 성장률과 수출액의 관계")
         
         # 데이터 정리
         growth_analysis_df = analyzed_df.copy()
@@ -1321,7 +1385,8 @@ def main():
         
         if len(growth_analysis_df) > 0:
             # 무한값 처리
-            growth_analysis_df = growth_analysis_df.replace([np.inf, -np.inf], np.nan).dropna(subset=['Export_Value', 'Growth_Rate'])
+            growth_analysis_df = growth_analysis_df.replace([np.inf, -np.inf], np.nan)
+            growth_analysis_df = growth_analysis_df.dropna(subset=['Export_Value', 'Growth_Rate'])
             
             if len(growth_analysis_df) > 0:
                 try:
@@ -1404,241 +1469,103 @@ def main():
                 risk_emoji = "🟢" if row['Risk_Index'] <= 2 else "🟡" if row['Risk_Index'] <= 3 else "🔴"
                 st.write(f"{i}. **{row['Country']}** {risk_emoji}: {row['Growth_Rate']:.1f}%")
                 st.write(f"   💰 수출액: ${row['Export_Value']:.1f}B | 적합도: {row['Suitability_Score']:.1f}점")
-
-# Tab 7과 Tab 8을 위한 완전한 함수들 추가
-def render_backtesting_results():
-    """실제 백테스팅 결과 렌더링"""
-    st.header("🔬 실제 HS CODE 3304 백테스팅 검증 결과")
-    
-    real_results = get_real_backtesting_results()
-    
-    # 핵심 결과 요약
-    st.markdown("""
-    <div class="backtesting-result">
-        <h3>🏆 2022-2024년 3개년 백테스팅 종합 결과</h3>
-        <p><strong>분석 기준:</strong> HS CODE 3304 (미용·메이크업·피부관리용 제품)</p>
-        <p><strong>분석 기간:</strong> 2022년 → 2023년 → 2024년 순차 검증</p>
-        <p><strong>분석 방법:</strong> 피어슨 상관계수 + Hit Rate + AUC + Spread 종합 평가</p>
-        <p><strong>핵심 발견:</strong> 수출중심 전략이 3년 연속 압도적 1위 달성!</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 최우수 전략 하이라이트
-    st.markdown("""
-    <div class="winner-strategy">
-        🥇 <strong>최우수 전략: 수출중심</strong> 🥇<br>
-        • 피어슨 상관계수: 0.837 (매우 강한 정의 상관관계)<br>
-        • 3년 연속 1위 (2022, 2023, 2024)<br>
-        • 통계적 유의성: ✅ 유일한 유의미한 전략 (p < 0.05)<br>
-        • 신뢰구간: [0.756, 0.891] - 매우 안정적<br>
-        • HS CODE 3304에서는 시장 규모가 가장 중요한 성공 요인!
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 전략별 순위 및 성과
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📊 전략별 종합 순위")
-        ranking_data = []
-        for strategy, result in real_results.items():
-            significance_icon = '✅' if result['significant'] else '❌'
-            ranking_data.append({
-                '순위': f"{result['rank']}위",
-                '전략': strategy,
-                '상관계수': f"{result['correlation']:.3f}",
-                '통계적 유의성': significance_icon,
-                '종합점수': f"{result['performance']:.1f}",
-                '특징': result['description']
-            })
         
-        ranking_df = pd.DataFrame(ranking_data)
-        st.dataframe(ranking_df, use_container_width=True, hide_index=True)
-    
-    with col2:
-        st.subheader("📈 3개년 순위 변화")
-        yearly_ranks = {
-            '전략': list(real_results.keys()),
-            '2022년': [real_results[s]['2022_rank'] for s in real_results.keys()],
-            '2023년': [real_results[s]['2023_rank'] for s in real_results.keys()],
-            '2024년': [real_results[s]['2024_rank'] for s in real_results.keys()]
-        }
+        # 성장률 구간별 분석
+        st.subheader("📊 성장률 구간별 분석")
         
-        yearly_df = pd.DataFrame(yearly_ranks)
-        st.dataframe(yearly_df, use_container_width=True, hide_index=True)
-    
-    # 핵심 인사이트
-    st.subheader("💡 실제 백테스팅 핵심 인사이트")
-    
-    insight_col1, insight_col2 = st.columns(2)
-    
-    with insight_col1:
-        st.success("""
-        **✅ 검증된 사실 (HS CODE 3304 기준)**:
-        - **수출중심 전략**이 3년 연속 압도적 1위
-        - 피어슨 상관계수 **0.837** (매우 강한 정의 상관관계)
-        - **유일하게 통계적으로 유의한 전략** (p < 0.05)
-        - 신뢰구간 [0.756, 0.891]로 매우 안정적
-        - 화장품 수출에서는 **기존 대형 시장이 핵심**
-        """)
-    
-    with insight_col2:
-        st.warning("""
-        **⚠️ 주의 사항**:
-        - **안전중심 전략**: 실제로는 **3위** 성과
-        - **성장중심 전략**: 거의 **무작위 수준**의 예측력
-        - 화장품 산업에서는 **신흥시장보다 기존 대형시장**이 더 예측 가능
-        - **위험 회피보다 시장 접근성**이 실제로 더 중요
-        """)
-
-def render_model_index():
-    """모델 설명 함수 완전 구현"""
-    st.header("🧮 HS CODE 3304 기반 MinMax 정규화 + 가중합 모델")
-    
-    # HS CODE 설명
-    st.markdown("""
-    <div class="hs-code-badge">
-        📋 HS CODE 3304: 미용·메이크업·피부관리용 제품 (Beauty, make-up and skin care preparations)
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    **분석 대상**: HS CODE 3304에 해당하는 화장품류 수출 데이터
-    - **포함 품목**: 파우더, 립스틱, 아이섀도, 매니큐어, 선크림, 화장품 등
-    - **2024년 실적**: 총 85.67억 달러 (전년 대비 19.3% 증가)
-    - **데이터 출처**: 한국무역협회(KITA) 무역통계, K-SURE PDR, K-SURE 위험지수
-    - **분석 기간**: 2022-2024년 3개년 실제 수출 통계
-    - **백테스팅 검증**: 수출중심 전략이 압도적 1위 (상관계수 0.837)
-    """)
-    
-    # 탭으로 구분
-    tab1, tab2, tab3 = st.tabs(["📊 MinMax 정규화", "⚖️ 가중합 방식", "🏆 검증된 결과"])
-    
-    with tab1:
-        st.subheader("1. MinMax 정규화란?")
+        # 성장률 구간 분류
+        def classify_growth(growth_rate):
+            if growth_rate >= 100:
+                return "🚀 초고성장 (100%+)"
+            elif growth_rate >= 50:
+                return "📈 고성장 (50-100%)"
+            elif growth_rate >= 20:
+                return "✅ 중성장 (20-50%)"
+            elif growth_rate >= 0:
+                return "📊 저성장 (0-20%)"
+            else:
+                return "📉 마이너스 성장"
         
-        st.markdown("""
-        **정의**: HS CODE 3304 수출 데이터의 각 지표를 0~100점 범위로 선형 변환
-        """)
+        analyzed_df['Growth_Category'] = analyzed_df['Growth_Rate'].apply(classify_growth)
         
-        # 수학 공식
-        try:
-            st.latex(r'''
-            X_{정규화} = 100 \times \frac{X - X_{최솟값}}{X_{최댓값} - X_{최솟값}}
-            ''')
-        except:
-            st.markdown("""
-            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; font-size: 18px;">
-            <b>X<sub>정규화</sub> = 100 × (X - X<sub>최솟값</sub>) / (X<sub>최댓값</sub> - X<sub>최솟값</sub>)</b>
-            </div>
-            """, unsafe_allow_html=True)
+        # 구간별 통계
+        growth_summary = analyzed_df.groupby('Growth_Category').agg({
+            'Country': 'count',
+            'Export_Value': 'mean',
+            'Suitability_Score': 'mean',
+            'Risk_Index': 'mean'
+        }).round(2)
         
-        # 실제 예시
-        st.subheader("📋 HS CODE 3304 수출액 정규화 실제 예시")
+        growth_summary.columns = ['국가 수', '평균 수출액', '평균 적합도', '평균 위험도']
         
-        example_data = {
-            '국가': ['중국', '미국', '일본', '홍콩', '베트남'],
-            'HS3304 수출액(백만달러)': [2156.3, 1547.6, 840.4, 511.1, 466.1],
-            '정규화 점수(0-100점)': [100, 63.9, 21.9, 2.6, 0]
-        }
+        # 구간별 시각화
+        col1, col2 = st.columns(2)
         
-        df_example = pd.DataFrame(example_data)
-        st.dataframe(df_example, use_container_width=True)
+        with col1:
+            # 구간별 국가 수
+            if len(growth_summary) > 0:
+                fig_growth_dist = px.bar(
+                    x=growth_summary.index,
+                    y=growth_summary['국가 수'],
+                    title="성장률 구간별 국가 분포",
+                    labels={'x': '성장률 구간', 'y': '국가 수'},
+                    color=growth_summary['국가 수'],
+                    color_continuous_scale='viridis'
+                )
+                fig_growth_dist.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_growth_dist, use_container_width=True)
         
-        st.info("""
-        **💡 HS CODE 3304 정규화의 장점**:
-        - 수출액(달러), 성장률(%), 위험지수(1-5), 연체율(%)을 공정하게 비교
-        - 중국의 압도적 수출액이 다른 지표를 왜곡하는 것을 방지
-        - 각 전략별 가중치 적용 시 의미 있는 결과 도출
-        """)
-    
-    with tab2:
-        st.subheader("2. 가중합(Weighted Sum) 방식")
+        with col2:
+            if len(growth_summary) > 0:
+                st.dataframe(growth_summary, use_container_width=True)
         
-        st.markdown("""
-        **HS CODE 3304 특화 가중치 설계**: 화장품 산업 특성을 반영한 전략별 가중치
-        """)
+        # 성장률 인사이트
+        st.subheader("🔍 성장률 분석 인사이트")
         
-        # 실제 백테스팅 결과를 반영한 전략별 가중치
-        weight_examples = {
-            '전략': ['수출 중심 🥇', '밸런스', '안전 중심', '성장 중심'],
-            '수출액 비중(%)': [60, 30, 20, 20],
-            '성장률 비중(%)': [20, 40, 20, 60],
-            '안전도 비중(%)': [15, 20, 50, 15],
-            '결제안전 비중(%)': [5, 10, 10, 5],
-            'HS3304 실제 성과': ['1위 (0.837)', '2위 (0.265)', '3위 (0.138)', '4위 (0.013)'],
-            '검증 결과': ['✅ 압도적', '🔶 안정적', '⚠️ 예상보다 낮음', '❌ 거의 무효']
-        }
-        
-        df_weights = pd.DataFrame(weight_examples)
-        st.dataframe(df_weights, use_container_width=True)
-        
-        st.markdown("""
-        **HS CODE 3304 화장품 산업 실제 검증 결과**:
-        - **수출중심 🥇**: 기존 대형 시장(중국, 미국, 일본) 중심 → **실제 백테스팅 1위** (상관계수 0.837)
-        - **밸런스**: 모든 요소 균형 고려 → **안정적 2위** (상관계수 0.265)
-        - **안전중심**: 위험 회피 중심 → **예상과 달리 3위** (상관계수 0.138)
-        - **성장중심**: 신흥 K-뷰티 시장 확장 → **거의 무작위 수준** (상관계수 0.013)
-        """)
-    
-    with tab3:
-        st.subheader("🏆 검증된 최종 결과 및 권고사항")
-        
-        # 최우수 전략 하이라이트
-        st.markdown("""
-        <div class="winner-strategy">
-            🥇 <strong>HS CODE 3304 최우수 전략: 수출중심</strong> 🥇<br><br>
-            <strong>📊 압도적 성과 지표:</strong><br>
-            • 피어슨 상관계수: 0.837 (매우 강한 정의 상관관계)<br>
-            • 2022-2024년 3년 연속 1위<br>
-            • 유일한 통계적 유의미한 전략 (p < 0.05)<br>
-            • Hit Rate: 60.0% (최고 수준)<br>
-            • AUC: 0.670 (우수한 예측 정확도)<br>
-            • 신뢰구간: [0.756, 0.891] - 매우 안정적
-        </div>
-        """, unsafe_allow_html=True)
+        # 최고/최저 성장률 국가
+        max_growth_country = analyzed_df.loc[analyzed_df['Growth_Rate'].idxmax()]
+        min_growth_country = analyzed_df.loc[analyzed_df['Growth_Rate'].idxmin()]
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**🎯 수출중심 전략 핵심 요소**:")
-            st.markdown("""
-            - **수출액 비중 60%**: 기존 대형 시장 규모 중시
-            - **검증된 시장**: 중국, 미국, 일본 등 안정적 파트너
-            - **실증된 효과**: 3년간 일관된 최고 성과
-            - **리스크 대비 효율**: 안전성보다 시장 접근성이 더 중요
+            st.success(f"""
+            **🏆 최고 성장률 국가**: {max_growth_country['Country']}
+            - 성장률: {max_growth_country['Growth_Rate']:.1f}%
+            - 수출액: ${max_growth_country['Export_Value']:.1f}B
+            - 적합도: {max_growth_country['Suitability_Score']:.1f}점
+            - 위험도: {max_growth_country['Risk_Index']}단계
             """)
         
         with col2:
-            st.markdown("**📈 추천 진출 우선순위 (수출중심 기준)**:")
-            st.markdown("""
-            1. **중국**: $21.6억 (최대 시장, 위험 관리 필요)
-            2. **미국**: $15.5억 (성장 잠재력 큰 시장)
-            3. **일본**: $8.4억 (안정적 고부가가치 시장)
-            4. **홍콩**: $5.1억 (아시아 허브 활용)
-            5. **베트남**: $4.7억 (신흥 성장 시장)
-            """)
+            color = "error" if min_growth_country['Growth_Rate'] < 0 else "warning"
+            if color == "error":
+                st.error(f"""
+                **📉 최저 성장률 국가**: {min_growth_country['Country']}
+                - 성장률: {min_growth_country['Growth_Rate']:.1f}%
+                - 수출액: ${min_growth_country['Export_Value']:.1f}B
+                - 적합도: {min_growth_country['Suitability_Score']:.1f}점
+                - 위험도: {min_growth_country['Risk_Index']}단계
+                """)
+            else:
+                st.warning(f"""
+                **📉 최저 성장률 국가**: {min_growth_country['Country']}
+                - 성장률: {min_growth_country['Growth_Rate']:.1f}%
+                - 수출액: ${min_growth_country['Export_Value']:.1f}B
+                - 적합도: {min_growth_country['Suitability_Score']:.1f}점
+                - 위험도: {min_growth_country['Risk_Index']}단계
+                """)
         
-        st.success("""
-        **🌟 KBEO HS CODE 3304 분석 최종 결론**:
-        
-        실제 3년간 백테스팅 검증 결과, **"수출중심 전략"**이 화장품 수출에서 
-        가장 효과적이고 신뢰할 수 있는 전략임이 과학적으로 입증되었습니다.
-        
-        이는 기존의 이론적 접근과 달리, **실제 시장에서는 검증된 대형 시장의 
-        중요성**이 위험 회피나 신흥시장 확장보다 훨씬 크다는 것을 의미합니다.
-        
-        따라서 HS CODE 3304 화장품 수출 기업들은 **기존 주력 시장을 기반으로 한 
-        안정적 확장 전략**을 우선 고려하는 것이 최적의 선택입니다.
+        # 성장률 기반 투자 전략 제안
+        st.info("""
+        **💡 HS CODE 3304 성장률 기반 투자 전략 제안**:
+        - **초고성장 시장 (100%+)**: 선점 효과를 위한 조기 진입, 높은 ROI 기대
+        - **고성장 시장 (50-100%)**: 중장기 투자 계획 수립, 브랜드 포지셔닝 강화
+        - **중성장 시장 (20-50%)**: 안정적 성장 기대, 점진적 시장 확대
+        - **저성장 시장 (0-20%)**: 기존 시장 유지, 효율성 중심 운영
+        - **마이너스 성장**: 신중한 검토 후 투자 축소 또는 대기 전략
         """)
-        # Tab 7과 Tab 8 구현
-    with tab7:
-        render_backtesting_results()
 
-    with tab8:
-        render_model_index()
-
-    
     with tab5:
         st.header("⚠️ 리스크 분석")
         
@@ -1736,38 +1663,54 @@ def render_model_index():
             with st.expander(f"{risk_level} 관리 방안"):
                 for rec in recommendations_list:
                     st.write(f"• {rec}")
-    
+        
+        # 위험도별 상세 분석
+        st.subheader("📊 위험도별 상세 분석")
+        
+        risk_analysis = analyzed_df.groupby('Risk_Index').agg({
+            'Country': 'count',
+            'Export_Value': 'mean',
+            'Growth_Rate': 'mean',
+            'PDR_Rate': 'mean',
+            'Suitability_Score': 'mean'
+        }).round(2)
+        
+        risk_analysis.columns = ['국가 수', '평균 수출액(B)', '평균 성장률(%)', '평균 연체율(%)', '평균 적합도']
+        risk_analysis['평균 수출액(B)'] = risk_analysis['평균 수출액(B)'] / 1000
+        
+        st.dataframe(risk_analysis, use_container_width=True)
+        
+        # 리스크-수익 분석
+        st.subheader("⚖️ 리스크-수익 분석")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**🔴 고위험-고수익 시장**:")
+            high_risk_high_reward = analyzed_df[(analyzed_df['Risk_Index'] >= 4) & 
+                                               (analyzed_df['Growth_Rate'] >= 50)].sort_values('Suitability_Score', ascending=False)
+            
+            if len(high_risk_high_reward) > 0:
+                for i, (_, row) in enumerate(high_risk_high_reward.head(5).iterrows(), 1):
+                    st.write(f"{i}. **{row['Country']}** 📈{row['Growth_Rate']:.1f}% ⚠️{row['Risk_Index']}")
+            else:
+                st.write("해당 조건의 국가가 없습니다.")
+        
+        with col2:
+            st.markdown("**🟢 저위험-안정수익 시장**:")
+            low_risk_stable = analyzed_df[(analyzed_df['Risk_Index'] <= 2) & 
+                                         (analyzed_df['Export_Value'] >= 100)].sort_values('Export_Value', ascending=False)
+            
+            if len(low_risk_stable) > 0:
+                for i, (_, row) in enumerate(low_risk_stable.head(5).iterrows(), 1):
+                    st.write(f"{i}. **{row['Country']}** 💰${row['Export_Value']:.1f}B 🟢{row['Risk_Index']}")
+            else:
+                st.write("해당 조건의 국가가 없습니다.")
+
     with tab6:
         st.header("🎮 수출 적합도 시뮬레이션")
         
         st.write("가상 시나리오를 입력하여 수출 적합도를 예측해보세요.")
-        
-        # 시뮬레이션용 백테스팅 함수
-        def perform_simulation_backtesting(strategy_weights):
-            """시뮬레이션 탭용 백테스팅 함수"""
-            results = []
-            years = ['2022', '2023', '2024']
-            
-            for year in years:
-                base_performance = (
-                    strategy_weights['export'] * 0.6 +
-                    strategy_weights['growth'] * 0.4 +
-                    strategy_weights['safety'] * 0.3 +
-                    strategy_weights['payment'] * 0.2
-                ) / 4
-                
-                year_multiplier = {'2022': 0.9, '2023': 1.0, '2024': 1.1}
-                avg_growth = base_performance * year_multiplier[year]
-                hit_rate = min(100, base_performance + np.random.normal(0, 10))
-                
-                results.append({
-                    'Year': year,
-                    'Avg_Growth': avg_growth,
-                    'Hit_Rate': max(0, hit_rate),
-                    'Top_Countries': ['국가A', '국가B', '국가C', '국가D', '국가E']
-                })
-            
-            return results
         
         # 백테스팅 결과 먼저 표시
         st.subheader("📊 전략별 백테스팅 결과")
@@ -1961,64 +1904,11 @@ def render_model_index():
             if sim_risk <= 2:
                 st.success("🛡️ 안전한 시장입니다. 장기적 투자와 브랜딩 전략을 고려하세요.")
 
-# Tab 8 마무리 부분 (끊어진 부분 완성)
-            st.markdown("""
-            - **수출액 비중 60%**: 기존 대형 시장 규모 중시
-            - **검증된 시장**: 중국, 미국, 일본 등 안정적 파트너
-            - **실증된 효과**: 3년간 일관된 최고 성과
-            - **리스크 대비 효율**: 안전성보다 시장 접근성이 더 중요
-            """)
-        
-        with col2:
-            st.markdown("**📈 추천 진출 우선순위 (수출중심 기준)**:")
-            st.markdown("""
-            1. **중국**: $21.6억 (최대 시장, 위험 관리 필요)
-            2. **미국**: $15.5억 (성장 잠재력 큰 시장)
-            3. **일본**: $8.4억 (안정적 고부가가치 시장)
-            4. **홍콩**: $5.1억 (아시아 허브 활용)
-            5. **베트남**: $4.7억 (신흥 성장 시장)
-            """)
-        
-        # 실무 적용 가이드
-        st.subheader("📋 실무 적용 가이드")
-        
-        st.markdown("""
-        **🔧 수출중심 전략 실행 방안**:
-        
-        **1단계: 기존 대형 시장 강화**
-        - 중국: 위험 관리하면서 시장 점유율 유지
-        - 미국: 성장 잠재력 활용한 적극적 확장
-        - 일본: 프리미엄 브랜딩 강화
-        
-        **2단계: 검증된 중형 시장 확대**
-        - 홍콩, 베트남, 대만 등 아시아 시장
-        - 기존 성공 모델 복제 적용
-        
-        **3단계: 신흥 시장 선별적 진출**
-        - 수출중심 점수 상위 국가 우선
-        - 리스크 관리 병행
-        """)
-        
-        st.warning("""
-        **⚠️ 다른 전략의 한계점**:
-        - **안전중심**: 실제로는 3위 성과, 과도한 위험 회피가 기회 상실 초래
-        - **성장중심**: 거의 무작위 수준의 예측력, 신흥시장 변동성 높음
-        - **밸런스**: 안정적이지만 뛰어난 성과는 기대하기 어려움
-        """)
-        
-        # 종합 결론
-        st.success("""
-        **🌟 KBEO HS CODE 3304 분석 최종 결론**:
-        
-        실제 3년간 백테스팅 검증 결과, **"수출중심 전략"**이 화장품 수출에서 
-        가장 효과적이고 신뢰할 수 있는 전략임이 과학적으로 입증되었습니다.
-        
-        이는 기존의 이론적 접근과 달리, **실제 시장에서는 검증된 대형 시장의 
-        중요성**이 위험 회피나 신흥시장 확장보다 훨씬 크다는 것을 의미합니다.
-        
-        따라서 HS CODE 3304 화장품 수출 기업들은 **기존 주력 시장을 기반으로 한 
-        안정적 확장 전략**을 우선 고려하는 것이 최적의 선택입니다.
-        """)
+    with tab7:
+        render_backtesting_results()
+
+    with tab8:
+        render_model_index()
 
 if __name__ == "__main__":
     main()
