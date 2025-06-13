@@ -171,7 +171,7 @@ def get_real_backtesting_results():
             'spread': 160.3,
             'performance': 27.9,
             'significant': False,
-            'description': 'PDF 주장과 달리 3위 성과',
+            'description': '3위 성과',
             'confidence_interval': '[0.089, 0.224]'
         },
         '성장중심': {
